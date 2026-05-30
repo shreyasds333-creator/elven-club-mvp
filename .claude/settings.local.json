@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const l = require\\('/Users/shreyasds/elvn club mvp/node_modules/lucide-react'\\); const icons = ['Bell','Flame','Trophy','ChevronRight','Zap','Users','Clock','TrendingUp','Star','Crown','Home','Compass','Plus','Wallet','User']; icons.forEach\\(i => console.log\\(i, i in l ? '✓' : '✗ MISSING'\\)\\);\")",
+      "Bash(node -e ' *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"require\\('maplibre-gl'\\); console.log\\('ok'\\)\")",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(mkdir -p \"/Users/shreyasds/elvn club mvp/app/challenges/[id]\")",
+      "Bash(curl -s http://localhost:3000/challenges)",
+      "Bash(curl -s http://localhost:3000/_next/static/chunks/app_challenges_page_tsx_05ozen6._.js)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('version:', d.get\\('version'\\)\\); print\\('main:', d.get\\('main'\\)\\); print\\('types:', d.get\\('types','none'\\)\\)\")",
+      "Bash(grep -n \"declare class Map\\\\b\\\\|Map\\\\$1\\\\|export.*MapLibreMap\\\\|maplibregl\\\\b\" \"/Users/shreyasds/elvn club mvp/node_modules/maplibre-gl/dist/maplibre-gl.d.ts\")",
+      "Bash(python3 -c \"import json; d=json.load\\(open\\('/Users/shreyasds/elvn club mvp/node_modules/framer-motion/package.json'\\)\\); print\\('version:', d.get\\('version'\\)\\); [print\\(k,':',d['exports'][k]\\) for k in list\\(d.get\\('exports',{}\\).keys\\(\\)\\)[:5]]\")",
+      "Bash(grep \"Map\\\\$1\\\\|11[0-9][0-9][0-9]\\\\|12[0-9][0-9][0-9]\")",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(grep -E \"\\\\.tsx$|^d\")"
+    ],
+    "additionalDirectories": [
+      "/Users/shreyasds/elvn club mvp/app/challenges"
+    ]
+  }
+}

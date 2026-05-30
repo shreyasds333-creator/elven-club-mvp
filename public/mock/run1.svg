@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1">
+      <stop offset="0" stop-color="#06b6d4" />
+      <stop offset="1" stop-color="#7c3aed" />
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="#0b1020" />
+  <g transform="translate(60,60)">
+    <rect width="1080" height="680" rx="24" fill="url(#g)" opacity="0.12" />
+    <circle cx="220" cy="300" r="180" fill="#0ea5a4" opacity="0.12" />
+    <g>
+      <rect x="360" y="140" width="420" height="320" rx="16" fill="#071029" stroke="#ffffff22" />
+      <text x="470" y="320" fill="#fff" font-size="56" font-family="sans-serif">Morning</text>
+      <text x="470" y="380" fill="#fff" opacity="0.9" font-size="28" font-family="sans-serif">Hill Repeats • 8K</text>
+    </g>
+  </g>
+</svg>

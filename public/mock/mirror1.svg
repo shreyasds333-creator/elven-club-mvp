@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <rect width="100%" height="100%" fill="#0b1220" />
+  <g transform="translate(60,60)">
+    <rect width="1080" height="680" rx="24" fill="#0b1220" stroke="#ffffff11" />
+    <text x="120" y="160" fill="#fff" font-size="44" font-family="sans-serif">Mirror check</text>
+    <text x="120" y="210" fill="#fff" opacity="0.9" font-size="20">Form fix and tempo sets</text>
+    <rect x="120" y="260" width="360" height="360" rx="12" fill="#06b6d4" opacity="0.06" />
+  </g>
+</svg>

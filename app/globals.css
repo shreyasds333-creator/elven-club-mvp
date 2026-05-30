@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+/* ─── Design tokens as CSS custom properties ─────────────────────────── */
+:root {
+  --gold:         #C9A84C;
+  --gold-bright:  #E2BE74;
+  --gold-deep:    #A07828;
+  --gold-glow:    rgba(201, 168, 76, 0.13);
+  --gold-border:  rgba(201, 168, 76, 0.20);
+
+  --bg-base:    #000000;
+  --bg-deep:    #070707;
+  --bg-card:    #101010;
+  --bg-surface: #161616;
+
+  --text-primary:   #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.54);
+  --text-tertiary:  rgba(255, 255, 255, 0.30);
+  --text-muted:     rgba(255, 255, 255, 0.16);
+
+  --border-faint:   rgba(255, 255, 255, 0.04);
+  --border-subtle:  rgba(255, 255, 255, 0.07);
+  --border-default: rgba(255, 255, 255, 0.10);
+
+  /* Shell heights — used by main-content, map page, etc. */
+  --topbar-h: calc(64px + env(safe-area-inset-top,    0px));
+  --navbar-h: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ─── Base reset ─────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+    "Helvetica Neue", "Inter", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+  overflow: hidden;
+  height: 100dvh;
+}
+
+/* ─── Scrollbar utilities ────────────────────────────────────────────── */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Tap highlight + press ──────────────────────────────────────────── */
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+  touch-action: manipulation;
+}
+button:active,
+a:active {
+  transform: scale(0.97);
+  transition: transform 0.1s ease;
+}
+
+/* ─── Film grain — cinematic depth on onboarding/auth screens ───────── */
+.grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0.036;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+  mix-blend-mode: overlay;
+}
+
+/* ─── Input global styles ────────────────────────────────────────────── */
+input::placeholder {
+  color: rgba(255, 255, 255, 0.32);
+  transition: color 0.20s ease;
+}
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #fff;
+  -webkit-box-shadow: 0 0 0px 1000px #000 inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+/* Bottom-border inputs (auth + onboarding) — gold focus state for premium feel */
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus {
+  border-bottom-color: rgba(201, 168, 76, 0.55) !important;
+  outline: none;
+}
+
+/* ─── Gold glow keyframe ─────────────────────────────────────────────── */
+@keyframes goldPulse {
+  0%, 100% { opacity: 0.10; }
+  50%       { opacity: 0.18; }
+}
+.gold-aura {
+  animation: goldPulse 4s ease-in-out infinite;
+}
+
+/* ─── App-shell: scrollable content zone between TopBar and BottomNav ── */
+.main-content {
+  position: fixed;
+  top:    var(--topbar-h);
+  bottom: var(--navbar-h);
+  left:   0;
+  right:  0;
+  z-index: 10;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.main-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Nav inner safe area ────────────────────────────────────────────── */
+.nav-safe-inner {
+  padding-bottom: 0;
+}
+
+/* ─── Shared keyframes — used across Challenges, Wallet, Chat, Profile ─ */
+
+/* Staggered entry: fade up from 8px with a soft overshoot */
+@keyframes springIn {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.97); }
+  65%  { opacity: 1; transform: translateY(-1px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Card ambient glow — slow breathe */
+@keyframes atmospherePulse {
+  0%, 100% { opacity: 0.62; transform: scale(1); }
+  50%       { opacity: 1;    transform: scale(1.10); }
+}
+
+/* Highlight sweep across card surface */
+@keyframes lightSweep {
+  0%, 40%    { transform: translateX(-135%); }
+  82%, 100%  { transform: translateX(345%); }
+}
+
+/* Online / live status dot pulse */
+@keyframes liveDot {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%       { opacity: 0.26; transform: scale(0.72); }
+}
+
+/* Urgency / low-stock blink */
+@keyframes urgencyPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.38; }
+}
+
+/* Prize / metric text glow */
+@keyframes prizeGlow {
+  0%, 100% { text-shadow: 0 0 22px rgba(226,190,116,0.30); opacity: 0.92; }
+  50%       { text-shadow: 0 0 48px rgba(226,190,116,0.55); opacity: 1; }
+}
