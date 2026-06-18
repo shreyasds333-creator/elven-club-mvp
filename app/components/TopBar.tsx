@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Flame, Search } from "lucide-react";
 import { color, radius } from "@/lib/tokens";
 import { useAppStore } from "@/lib/appStore";
+import { useAuth } from "@/lib/authStore";
 
 // ─── Contextual pill config per route ─────────────────────────────────────────
 type PillConfig = {
@@ -101,6 +102,7 @@ export default function TopBar() {
   const [pillBright,  setPillBright]  = useState(false);
   const [streakGlow,  setStreakGlow]  = useState(false);
   const { streak } = useAppStore();
+  const { user }   = useAuth();
   const cfg: PillConfig = PILL[pathname ?? ""] ?? DEFAULT_PILL;
   const prevStreakRef = useRef(streak);
   const textRef      = useRef<HTMLSpanElement>(null);
@@ -190,7 +192,7 @@ export default function TopBar() {
             boxShadow: "0 0 0 1.5px rgba(201,168,76,0.22), 0 4px 20px rgba(0,0,0,0.65)",
           }}
         >
-          AS
+          {user?.initials ?? "?"}
         </Link>
 
         {/* ── Center: contextual live pill (tappable) ──────────────────── */}
