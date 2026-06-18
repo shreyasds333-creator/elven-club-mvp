@@ -76,7 +76,7 @@ export default function CameraPage() {
   const [timeState, setTimeState] = useState(computeTimeLeft);
   const { timeLeft, isUrgent } = timeState;
 
-  const { streak, provedToday, joined: joinedSet, sendProof: storeProof } = useAppStore();
+  const { streak, coins, provedToday, joined: joinedSet, proofSent, claimedChallenges, sendProof: storeProof } = useAppStore();
 
   // ── All hooks must be called before any early return ────────────────────────
 
@@ -244,23 +244,43 @@ export default function CameraPage() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 22px", borderRadius: radius.full, background: "rgba(201,168,76,0.10)", border: `1px solid ${color.gold.border}` }}>
           <Zap size={14} style={{ color: color.gold.base }} />
-          <span style={{ fontSize: "0.875rem", fontWeight: 700, color: color.gold.base }}>+50 pts earned · Streak: {streak} days</span>
+          <span style={{ fontSize: "0.875rem", fontWeight: 700, color: color.gold.base }}>+50 pts · ⟡ {coins.toLocaleString("en-IN")} total</span>
         </div>
 
-        <Link
-          href={`/challenges/${activeChallenge?.id ?? challengeId}`}
-          style={{
-            marginTop: 20,
-            display: "flex", alignItems: "center", gap: 6,
-            padding: "10px 20px", borderRadius: radius.full,
-            background: "rgba(201,168,76,0.10)", border: `1px solid ${color.gold.border}`,
-            textDecoration: "none",
-            fontSize: "0.8125rem", fontWeight: 700, color: color.gold.base,
-            letterSpacing: "0.02em",
-          }}
-        >
-          View Room →
-        </Link>
+        {/* Claim prize shortcut — shown if proof is now eligible */}
+        {proofSent.has(activeChallenge?.id ?? challengeId) && !claimedChallenges.has(activeChallenge?.id ?? challengeId) ? (
+          <Link
+            href={`/challenges/${activeChallenge?.id ?? challengeId}`}
+            style={{
+              marginTop: 20,
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "12px 24px", borderRadius: radius.full,
+              background: "linear-gradient(135deg,rgba(226,190,116,0.18),rgba(201,168,76,0.10))",
+              border: `1px solid ${color.gold.border}`,
+              textDecoration: "none",
+              fontSize: "0.875rem", fontWeight: 800, color: color.gold.bright,
+              letterSpacing: "0.02em",
+              boxShadow: "0 0 24px rgba(201,168,76,0.16)",
+            }}
+          >
+            <span>🏆</span> Claim Prize →
+          </Link>
+        ) : (
+          <Link
+            href={`/challenges/${activeChallenge?.id ?? challengeId}`}
+            style={{
+              marginTop: 20,
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "10px 20px", borderRadius: radius.full,
+              background: "rgba(201,168,76,0.10)", border: `1px solid ${color.gold.border}`,
+              textDecoration: "none",
+              fontSize: "0.8125rem", fontWeight: 700, color: color.gold.base,
+              letterSpacing: "0.02em",
+            }}
+          >
+            View Room →
+          </Link>
+        )}
 
         <p style={{ fontSize: "0.5625rem", color: "rgba(255,255,255,0.18)", letterSpacing: "0.10em", textTransform: "uppercase", marginTop: 24 }}>
           Returning to camera…
@@ -327,7 +347,9 @@ export default function CameraPage() {
           </p>
           <div className="no-scrollbar" style={{ display: "flex", gap: 7, overflowX: "auto", marginBottom: 16 }}>
             {CAM_CHALLENGES.map(ch => {
-              const active = challengeId === ch.id;
+              const active  = challengeId === ch.id;
+              const claimed = claimedChallenges.has(ch.id);
+              const proved  = proofSent.has(ch.id);
               return (
                 <button
                   key={ch.id}
@@ -339,11 +361,12 @@ export default function CameraPage() {
                     border: `1px solid ${active ? ch.accent + "3A" : "rgba(255,255,255,0.08)"}`,
                     cursor: "pointer", transition: `all ${motion.fast}`,
                     boxShadow: active ? `0 0 14px ${ch.accent}18` : "none",
+                    opacity: claimed ? 0.45 : 1,
                   }}
                 >
-                  <span style={{ fontSize: 11 }}>{ch.emoji}</span>
+                  <span style={{ fontSize: 11 }}>{claimed ? "🏆" : ch.emoji}</span>
                   <span style={{ fontSize: "0.625rem", fontWeight: active ? 700 : 500, color: active ? ch.accent : "rgba(255,255,255,0.48)" }}>
-                    {ch.label}
+                    {claimed ? "Won" : proved ? `${ch.label} ✓` : ch.label}
                   </span>
                 </button>
               );

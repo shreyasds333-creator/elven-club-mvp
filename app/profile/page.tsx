@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/authStore";
 import { color, radius, typo, space, motion } from "@/lib/tokens";
 import { fmt, rgb } from "@/lib/challengeData";
 import { getReputation } from "@/lib/feedData";
-import { useAppStore } from "@/lib/appStore";
+import { useAppStore, todayStr, type ProofEntry } from "@/lib/appStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Tab = "Overview" | "Shields" | "Badges" | "Stats";
@@ -24,9 +24,9 @@ interface BadgeItem {
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 const USER = {
-  name:            "Arjun Sharma",
-  handle:          "@arjun_lifts",
-  initials:        "AS",
+  name:            "",
+  handle:          "",
+  initials:        "",
   streak:          11,
   rupeesEarned:    12000,
   totalCalories:   48240,
@@ -110,10 +110,23 @@ function streakRing(streak: number): string {
 
 const FRAGMENT_GOAL = 4;
 
+function buildCalendar(proofLog: ProofEntry[], provedToday: boolean) {
+  const today = todayStr();
+  const proofDates = new Set(proofLog.map(p => new Date(p.timestamp).toISOString().slice(0, 10)));
+  return Array.from({ length: 14 }, (_, i) => {
+    const offset  = 13 - i;
+    const date    = new Date(Date.now() - offset * 86_400_000).toISOString().slice(0, 10);
+    const isToday = date === today;
+    return { hit: isToday ? provedToday : proofDates.has(date), shielded: false, isToday: isToday || undefined };
+  });
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const router = useRouter();
-  const { streak, longestStreak, provedToday, createdChallenges } = useAppStore();
+  const { streak, longestStreak, provedToday, createdChallenges, joined, proofLog, claimedChallenges, transactions } = useAppStore();
+  const totalEarned = transactions.filter(t => t.category === "Win").reduce((s, t) => s + t.coins, 0);
+  const calendar    = buildCalendar(proofLog, provedToday);
   const [activeTab,   setActiveTab]   = useState<Tab>("Overview");
   const [shields,     setShields]     = useState(2);
   const [fragments,   setFragments]   = useState(2);
@@ -127,7 +140,7 @@ export default function ProfilePage() {
 
   // Prefer real auth data over mock data where available
   const displayName     = authUser?.name     ?? USER.name;
-  const displayHandle   = authUser?.handle   ? `@${authUser.handle}` : USER.handle;
+  const displayHandle   = authUser?.handle   ? `@${authUser.handle}` : (USER.handle || "");
   const displayInitials = authUser?.initials ?? USER.initials;
 
   function completeRecovery(id: number) {
@@ -315,7 +328,7 @@ export default function ProfilePage() {
             {/* 14-day calendar — each bar has context */}
             <div style={{ marginTop:14 }}>
               <div style={{ display:"flex", gap:3, alignItems:"center" }}>
-                {CALENDAR.map((d, i) => {
+                {calendar.map((d, i) => {
                   // Last bar is always "today" — reflect real provedToday state
                   const isToday  = d.isToday ?? false;
                   const hit      = isToday ? provedToday : (d.hit ?? false);
@@ -358,10 +371,10 @@ export default function ProfilePage() {
       {/* ── Stats ribbon — tappable cells ─────────────────────────────── */}
       <div style={{ display:"flex", margin:`12px ${space.screenX}px 0`, background:color.bg.surface, borderRadius:radius.lg, border:`1px solid ${color.border.faint}`, overflow:"hidden" }}>
         {[
-          { label:"Earned",     value:fmt(USER.rupeesEarned),   accent:"#4DC87A",       tab: "Stats"    as Tab },
-          { label:"Rank",       value:`#${USER.rank}`,           accent:"#6098D8",       tab: "Stats"    as Tab },
-          { label:"Discipline", value:`${USER.discScore}`,       accent:color.gold.base, tab: "Stats"    as Tab },
-          { label:"Best Streak",value:`${longestStreak}d`,       accent:"#E07840",       tab: "Overview" as Tab },
+          { label:"Earned",     value:fmt(totalEarned),                accent:"#4DC87A",       tab: "Stats"    as Tab },
+          { label:"Challenges", value:String(joined.size),            accent:"#6098D8",       tab: "Stats"    as Tab },
+          { label:"Proofs",     value:String(proofLog.length),        accent:color.gold.base, tab: "Stats"    as Tab },
+          { label:"Best Streak",value:`${longestStreak}d`,            accent:"#E07840",       tab: "Overview" as Tab },
         ].map((s, i) => (
           <button
             key={i}
@@ -721,10 +734,10 @@ export default function ProfilePage() {
           <span style={{ ...typo.label, color:color.text.tertiary }}>Lifetime Stats</span>
           <div style={{ marginTop:12, display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
             {[
-              { label:"Total Earned",  value:fmt(USER.rupeesEarned),                    accent:"#4DC87A",       emoji:"💰", sub:`${USER.totalChallenges} challenges` },
-              { label:"Calories",      value:USER.totalCalories.toLocaleString("en-IN"), accent:"#E07840",       emoji:"🔥", sub:"kcal lifetime" },
-              { label:"Global Rank",   value:`#${USER.rank}`,                            accent:"#6098D8",       emoji:"🏆", sub:"in Mumbai" },
-              { label:"Steps Today",   value:"8,247",                                    accent:color.gold.base, emoji:"👟", sub:"of 10,000 goal" },
+              { label:"Total Earned",  value:fmt(totalEarned),                          accent:"#4DC87A",       emoji:"💰", sub:`${claimedChallenges.size} wins` },
+              { label:"Challenges",    value:String(joined.size),                        accent:"#E07840",       emoji:"🏆", sub:"joined" },
+              { label:"Proofs Sent",   value:String(proofLog.length),                    accent:"#6098D8",       emoji:"📸", sub:"lifetime" },
+              { label:"Best Streak",   value:`${longestStreak}d`,                        accent:color.gold.base, emoji:"🔥", sub:"personal best" },
             ].map((s, i) => (
               <div
                 key={i}

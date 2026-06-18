@@ -90,7 +90,7 @@ const rankings = [
   {
     rank: 3,
     user: "You",
-    initials: "AS",
+    initials: "",
     avatarBg: color.gold.gradient,
     steps: 8247,
     rupeesWon: 1200,
@@ -158,7 +158,7 @@ function SectionHeader({
 export default function HomePage() {
   const [greeting, setGreeting] = useState("Good Morning");
   const { user: authUser } = useAuth();
-  const { streak } = useAppStore();
+  const { streak, joined, coins } = useAppStore();
 
   useEffect(() => {
     const h = new Date().getHours();
@@ -220,7 +220,7 @@ export default function HomePage() {
                 lineHeight: 1,
               }}
             >
-              {authUser?.name ?? "Arjun Sharma"}
+              {authUser?.name ?? authUser?.email?.split("@")[0] ?? "Welcome"}
             </h1>
           </div>
 
@@ -308,7 +308,7 @@ export default function HomePage() {
                 textDecoration: "none",
               }}
             >
-              {authUser?.initials ?? "AS"}
+              {authUser?.initials ?? "?"}
             </Link>
           </div>
         </div>
@@ -452,22 +452,22 @@ export default function HomePage() {
               {
                 icon: <Flame size={12} style={{ color: color.status.streak }} />,
                 label: "Streak",
-                value: "4",
-                sub: "weeks",
+                value: String(streak),
+                sub: streak === 1 ? "day" : "days",
                 accent: color.status.streak,
               },
               {
                 icon: <Target size={12} style={{ color: color.gold.base }} />,
                 label: "Challenges",
-                value: "3",
-                sub: "active",
+                value: String(joined.size),
+                sub: joined.size === 1 ? "active" : "active",
                 accent: color.gold.base,
               },
               {
                 icon: <TrendingUp size={12} style={{ color: color.status.success }} />,
-                label: "Earned",
-                value: "₹1.2K",
-                sub: "this month",
+                label: "Coins",
+                value: fmt(coins),
+                sub: "balance",
                 accent: color.status.success,
               },
             ].map((s) => (
@@ -729,7 +729,7 @@ export default function HomePage() {
                   boxShadow: entry.rank === 1 ? "0 0 0 1.5px rgba(201,168,76,0.35)" : "none",
                 }}
               >
-                {entry.initials}
+                {entry.isYou ? (authUser?.initials ?? "?") : entry.initials}
               </div>
 
               <div style={{ flex: 1, minWidth: 0 }}>

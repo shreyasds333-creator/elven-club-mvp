@@ -5,6 +5,7 @@ import Link from "next/link";
 import { color, radius, typo, space, motion, tierStyle } from "@/lib/tokens";
 import { ALL_CHALLENGES, fmt, fmtCoins, rgb, PROOF_ICON, timeToMidnight, timeToMidnightRaw, type Challenge } from "@/lib/challengeData";
 import { useAppStore } from "@/lib/appStore";
+import { useAuth } from "@/lib/authStore";
 
 // ─── Leaderboard mock ────────────────────────────────────────────────────────
 const LB = [
@@ -42,17 +43,20 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
   const c = ALL_CHALLENGES.find(ch => ch.id === parseInt(id));
 
   const store = useAppStore();
+  const { user: authUser } = useAuth();
   const walletBalance  = store.coins;
   const joined         = store.joined.has(c?.id ?? -1);
   const proofSent      = store.proofSent.has(c?.id ?? -1);
   const recoveryActive = store.recovering.has(c?.id ?? -1);
   const shieldActive   = store.shielded.has(c?.id ?? -1);
   const globalShields  = store.shields;
+  const claimed        = store.claimedChallenges.has(c?.id ?? -1);
 
-  const [joining,   setJoining]   = useState(false);
-  const [showJoin,  setShowJoin]  = useState(false);
-  const [showProof, setShowProof] = useState(false);
-  const [showShield,setShowShield] = useState(false);
+  const [joining,    setJoining]    = useState(false);
+  const [showJoin,   setShowJoin]   = useState(false);
+  const [showProof,  setShowProof]  = useState(false);
+  const [showShield, setShowShield] = useState(false);
+  const [showClaim,  setShowClaim]  = useState(false);
   const [countdown, setCountdown] = useState(() => {
     const { h, m, s } = timeToMidnightRaw();
     return { d: c?.daysLeft ?? 0, h, m, s };
@@ -86,6 +90,8 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
   const canAfford        = walletBalance >= c.entry;
   const spotsLeft        = c.maxParticipants - c.participants;
   const tier             = tierStyle[c.tier];
+  const prizeAmount      = Math.round(c.prize * 0.80 / c.winnersCount);
+  const canClaimPrize    = joined && proofSent && !claimed;
 
   function handleJoinConfirm() {
     if (!canAfford || !c) return;
@@ -103,6 +109,11 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
     if (store.shields < 1) return;
     store.activateShield(c!.id);
     setShowShield(false);
+  }
+
+  function handleClaimPrize() {
+    store.claimPrize(c!.id, prizeAmount, c!.title);
+    setShowClaim(false);
   }
 
   const accentClr = shieldActive ? "#6098D8" : c.accentColor;
@@ -356,7 +367,7 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
             </div>
             {/* Avatar */}
             <div style={{ width: 32, height: 32, borderRadius: "50%", background: row.bg, border: row.isMe ? `1.5px solid rgba(${rgb(c.accentColor)},0.50)` : `1.5px solid ${color.border.subtle}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.5rem", fontWeight: 800, color: "#fff", flexShrink: 0, boxShadow: row.isMe ? `0 0 10px rgba(${rgb(c.accentColor)},0.25)` : "none" }}>
-              {row.initials}
+              {row.isMe ? (authUser?.initials ?? "?") : row.initials}
             </div>
             {/* Name */}
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -550,8 +561,23 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
               <div style={{ fontSize: "0.6875rem", color: "rgba(226,190,116,0.65)", marginTop: 2 }}>⟡ {c.entry.toLocaleString("en-IN")} coins committed</div>
             </div>
           </div>
+        ) : joined && claimed ? (
+          <div style={{ padding: "14px", borderRadius: radius.lg, background: "rgba(77,200,122,0.09)", border: "1px solid rgba(77,200,122,0.26)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            <span style={{ fontSize: 18 }}>🏆</span>
+            <div>
+              <div style={{ fontSize: "0.9375rem", fontWeight: 800, color: "#4DC87A", letterSpacing: "-0.02em", lineHeight: 1.1 }}>Prize claimed</div>
+              <div style={{ fontSize: "0.6875rem", color: "rgba(77,200,122,0.55)", marginTop: 2 }}>⟡ {prizeAmount.toLocaleString("en-IN")} coins deposited to vault</div>
+            </div>
+          </div>
         ) : joined ? (
-          shieldActive ? (
+          canClaimPrize ? (
+            <button onClick={() => setShowClaim(true)} style={{ width: "100%", padding: "15px", borderRadius: radius.lg, background: "linear-gradient(135deg,#E2BE74 0%,#C9A84C 100%)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, boxShadow: "0 4px 32px rgba(201,168,76,0.50), inset 0 1px 0 rgba(255,255,255,0.20)", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: "32%", background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.22),transparent)", animation: "shimmer 2.4s ease-in-out infinite" }} />
+              <span style={{ fontSize: 16, position: "relative" }}>🏆</span>
+              <span style={{ fontSize: "0.9375rem", fontWeight: 900, color: "#000", letterSpacing: "0.06em", textTransform: "uppercase", position: "relative" }}>Claim Prize</span>
+              <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "rgba(0,0,0,0.55)", position: "relative" }}>· {fmt(prizeAmount)}</span>
+            </button>
+          ) : shieldActive ? (
             <div style={{ padding: "14px", borderRadius: radius.lg, background: "rgba(96,152,216,0.10)", border: "1px solid rgba(96,152,216,0.30)", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, animation: "shieldEntry 0.45s ease both" }}>
               <span style={{ fontSize: 16 }}>🛡️</span>
               <span style={{ fontSize: "0.875rem", fontWeight: 700, color: "#6098D8" }}>ELVN Shield Protected Your Streak</span>
@@ -595,9 +621,10 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       {/* ── Modals ─────────────────────────────────────────────────────────────── */}
-      {showJoin  && <JoinModal   c={c} walletBalance={walletBalance} onConfirm={handleJoinConfirm} onClose={() => setShowJoin(false)} />}
-      {showProof && <ProofModal  c={c} dayNum={dayNum} proofSent={proofSent} onSubmit={handleProofSubmit} onClose={() => setShowProof(false)} />}
+      {showJoin   && <JoinModal   c={c} walletBalance={walletBalance} onConfirm={handleJoinConfirm} onClose={() => setShowJoin(false)} />}
+      {showProof  && <ProofModal  c={c} dayNum={dayNum} proofSent={proofSent} onSubmit={handleProofSubmit} onClose={() => setShowProof(false)} />}
       {showShield && <ShieldModal globalShields={globalShields} onActivate={handleShieldActivate} onClose={() => setShowShield(false)} />}
+      {showClaim  && <ClaimModal  c={c} prizeAmount={prizeAmount} onClaim={handleClaimPrize} onClose={() => setShowClaim(false)} />}
 
       <style>{`
         @keyframes atmoPulse    { 0%,100%{opacity:0.70;transform:scale(1);} 50%{opacity:1;transform:scale(1.08);} }
@@ -617,6 +644,8 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
         @keyframes overlayIn    { 0%{opacity:0;} 100%{opacity:1;} }
         @keyframes proofSuccess { 0%{opacity:0;transform:scale(0.80);} 55%{opacity:1;transform:scale(1.06);} 100%{opacity:1;transform:scale(1);} }
         @keyframes activitySelect { 0%{transform:scale(1);} 50%{transform:scale(0.97);} 100%{transform:scale(1);} }
+        @keyframes claimIn { 0%{opacity:0;transform:scale(0.72) translateY(8px);} 55%{opacity:1;transform:scale(1.04) translateY(-2px);} 100%{opacity:1;transform:scale(1) translateY(0);} }
+        @keyframes goldPulse { 0%,100%{opacity:0.88;filter:brightness(1);} 50%{opacity:1;filter:brightness(1.18);} }
       `}</style>
     </div>
   );
@@ -898,6 +927,105 @@ function ShieldModal({ globalShields, onActivate, onClose }: {
         <button onClick={onClose} style={{ width: "100%", padding: "11px", borderRadius: radius.lg, background: "transparent", border: "none", cursor: "pointer", fontSize: "0.875rem", color: color.text.muted }}>
           {activated ? "Done" : "Cancel"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Claim Prize Modal ────────────────────────────────────────────────────────
+function ClaimModal({ c, prizeAmount, onClaim, onClose }: {
+  c: Challenge; prizeAmount: number; onClaim: () => void; onClose: () => void;
+}) {
+  const [claimed, setClaimed] = useState(false);
+
+  function handleClaim() {
+    setClaimed(true);
+    setTimeout(() => onClaim(), 1800);
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 300, animation: "overlayIn 0.2s ease both" }}>
+      <div onClick={!claimed ? onClose : undefined} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.92)", backdropFilter: "blur(10px)" }} />
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        background: color.bg.deep,
+        borderTop: "1px solid rgba(201,168,76,0.28)",
+        borderRadius: `${radius.xl} ${radius.xl} 0 0`,
+        padding: `24px ${space.screenX}px calc(36px + env(safe-area-inset-bottom, 0px))`,
+        animation: "sheetUp 0.36s cubic-bezier(.175,.885,.32,1.1) both",
+        boxShadow: "0 -20px 60px rgba(201,168,76,0.14)",
+        overflow: "hidden",
+      }}>
+        {/* Ambient gold glow */}
+        <div style={{ position: "absolute", top: -40, left: "50%", transform: "translateX(-50%)", width: "70%", height: 120, borderRadius: "50%", background: "radial-gradient(circle, rgba(201,168,76,0.18) 0%, transparent 70%)", filter: "blur(24px)", pointerEvents: "none" }} />
+
+        <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(201,168,76,0.28)", margin: "0 auto 22px", position: "relative" }} />
+
+        {claimed ? (
+          // Claimed celebration state
+          <div style={{ textAlign: "center", padding: "10px 0 12px", animation: "claimIn 0.55s cubic-bezier(.175,.885,.32,1.275) both" }}>
+            <div style={{ fontSize: 58, marginBottom: 14, animation: "goldPulse 1.8s ease-in-out infinite" }}>🏆</div>
+            <div style={{ fontSize: "1.75rem", fontWeight: 900, color: color.gold.bright, letterSpacing: "-0.05em", marginBottom: 6, lineHeight: 1 }}>
+              {fmt(prizeAmount)}
+            </div>
+            <div style={{ fontSize: "0.9375rem", fontWeight: 700, color: color.text.primary, marginBottom: 4, letterSpacing: "-0.02em" }}>
+              Deposited to your vault
+            </div>
+            <div style={{ fontSize: "0.75rem", color: color.text.muted, marginBottom: 20 }}>
+              {c.title} · Winner
+            </div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", borderRadius: radius.full, background: "rgba(201,168,76,0.10)", border: "1px solid rgba(201,168,76,0.26)" }}>
+              <span style={{ fontSize: 10 }}>⟡</span>
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: color.gold.base }}>Check your Vault for the transaction</span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Challenge badge */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 22 }}>
+              <div style={{ width: 52, height: 52, borderRadius: radius.md, background: `rgba(${rgb(c.accentColor)},0.16)`, border: `1px solid rgba(${rgb(c.accentColor)},0.36)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, flexShrink: 0 }}>{c.emoji}</div>
+              <div>
+                <div style={{ fontSize: "0.5rem", fontWeight: 700, letterSpacing: "0.10em", textTransform: "uppercase", color: "#4DC87A", marginBottom: 3 }}>Challenge Complete</div>
+                <div style={{ fontSize: "1.0625rem", fontWeight: 800, color: color.text.primary, letterSpacing: "-0.03em", lineHeight: 1.15 }}>{c.title}</div>
+                <div style={{ fontSize: "0.6875rem", color: color.text.tertiary, marginTop: 2 }}>{c.duration}-day · {c.tier}</div>
+              </div>
+            </div>
+
+            {/* Prize amount display */}
+            <div style={{ padding: "18px 20px", borderRadius: radius.lg, background: "linear-gradient(135deg, rgba(201,168,76,0.10) 0%, rgba(201,168,76,0.06) 100%)", border: "1px solid rgba(201,168,76,0.24)", marginBottom: 16, textAlign: "center", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: "40%", background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.03),transparent)", animation: "shimmer 4s ease-in-out infinite", pointerEvents: "none" }} />
+              <div style={{ fontSize: "0.5625rem", fontWeight: 600, letterSpacing: "0.10em", textTransform: "uppercase", color: color.text.muted, marginBottom: 6 }}>Your Prize</div>
+              <div style={{ fontSize: "2.75rem", fontWeight: 900, color: color.gold.bright, letterSpacing: "-0.058em", lineHeight: 1, animation: "goldPulse 3s ease-in-out infinite" }}>{fmt(prizeAmount)}</div>
+              <div style={{ fontSize: "0.6875rem", color: color.text.muted, marginTop: 4 }}>Split among top {c.winnersCount} completers</div>
+            </div>
+
+            {/* Breakdown */}
+            <div style={{ borderRadius: radius.md, background: color.bg.card, border: `1px solid ${color.border.subtle}`, overflow: "hidden", marginBottom: 20 }}>
+              {[
+                { label: "Prize Pool", value: fmt(c.prize), color: c.accentColor },
+                { label: "Your Share (80%)", value: fmt(Math.round(c.prize * 0.8)), color: color.gold.base },
+                { label: `÷ ${c.winnersCount} winners`, value: fmt(prizeAmount), color: "#4DC87A" },
+              ].map((row, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: i < 2 ? `1px solid ${color.border.faint}` : "none" }}>
+                  <span style={{ fontSize: "0.6875rem", color: color.text.muted }}>{row.label}</span>
+                  <span style={{ fontSize: "0.875rem", fontWeight: 700, color: row.color, letterSpacing: "-0.03em" }}>{row.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA */}
+            <button
+              onClick={handleClaim}
+              style={{ width: "100%", padding: "16px", borderRadius: radius.lg, background: "linear-gradient(135deg,#E2BE74 0%,#C9A84C 100%)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, boxShadow: "0 6px 36px rgba(201,168,76,0.52), inset 0 1px 0 rgba(255,255,255,0.22)", position: "relative", overflow: "hidden", marginBottom: 12 }}>
+              <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: "36%", background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.24),transparent)", animation: "shimmer 2.2s ease-in-out infinite", pointerEvents: "none" }} />
+              <span style={{ fontSize: 18, position: "relative" }}>🏆</span>
+              <span style={{ fontSize: "1rem", fontWeight: 900, color: "#000", letterSpacing: "0.06em", textTransform: "uppercase", position: "relative" }}>Claim {fmt(prizeAmount)}</span>
+            </button>
+            <button onClick={onClose} style={{ width: "100%", padding: "11px", borderRadius: radius.lg, background: "transparent", border: "none", cursor: "pointer", fontSize: "0.875rem", color: color.text.muted }}>
+              Later
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

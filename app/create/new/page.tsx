@@ -6,6 +6,7 @@ import { ArrowLeft, Check, Copy } from "lucide-react";
 import { color, radius, typo, space, motion } from "@/lib/tokens";
 import { fmt } from "@/lib/challengeData";
 import { useAppStore, type CreateChallengeConfig } from "@/lib/appStore";
+import { useAuth } from "@/lib/authStore";
 import type { Challenge } from "@/lib/challengeData";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ function daysFromDates(start: string, end: string): number {
 export default function CreateNewPage() {
   const router = useRouter();
   const store  = useAppStore();
+  const { user: authUser } = useAuth();
 
   const [step,    setStep]    = useState(1);
   const [created, setCreated] = useState<Challenge | null>(null);
@@ -41,18 +43,20 @@ export default function CreateNewPage() {
   const today = todayStr();
 
   const [form, setForm] = useState<FormState>({
-    isPublic:  false,
-    memberCap: 50,
-    title:     "",
-    tagline:   "",
-    category:  "discipline",
-    stepGoal:  10000,
-    proofType: "Camera Proof",
-    minStreak: 0,
-    duration:  14,
-    entry:     0,
-    startDate: today,
-    endDate:   addDays(today, 14),
+    isPublic:        false,
+    memberCap:       50,
+    title:           "",
+    tagline:         "",
+    category:        "discipline",
+    stepGoal:        10000,
+    proofType:       "Camera Proof",
+    minStreak:       0,
+    duration:        14,
+    entry:           0,
+    startDate:       today,
+    endDate:         addDays(today, 14),
+    creatorName:     "",
+    creatorInitials: "",
   });
 
   function patch<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -78,16 +82,18 @@ export default function CreateNewPage() {
       setStep(s => s + 1);
     } else {
       const challenge = store.createChallenge({
-        isPublic:  form.isPublic,
-        memberCap: form.memberCap,
-        title:     form.title,
-        tagline:   form.tagline,
-        category:  form.category,
-        stepGoal:  form.stepGoal,
-        proofType: form.proofType,
-        minStreak: form.minStreak,
-        duration:  form.duration,
-        entry:     form.entry,
+        isPublic:        form.isPublic,
+        memberCap:       form.memberCap,
+        title:           form.title,
+        tagline:         form.tagline,
+        category:        form.category,
+        stepGoal:        form.stepGoal,
+        proofType:       form.proofType,
+        minStreak:       form.minStreak,
+        duration:        form.duration,
+        entry:           form.entry,
+        creatorName:     authUser?.name     ?? "ELVN Member",
+        creatorInitials: authUser?.initials ?? "EM",
       });
       setCreated(challenge);
       setStep(7);

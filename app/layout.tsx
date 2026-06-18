@@ -10,7 +10,16 @@ import type { Viewport } from "next";
 
 export const metadata = {
   title: "ELVN CLUB",
-  description: "Fitness Accountability App",
+  description: "Fitness Accountability App — stake coins, prove daily, win prizes.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "ELVN",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
 export const viewport: Viewport = {

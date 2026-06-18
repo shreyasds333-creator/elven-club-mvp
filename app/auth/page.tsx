@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/authStore";
 import { color, shadow, space } from "@/lib/tokens";
@@ -25,13 +26,12 @@ const line = {
 
 export default function AuthPage() {
   const router = useRouter();
-  const { login, signup } = useAuth();
+  const { login } = useAuth();
 
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [error,    setError]    = useState("");
   const [loading,  setLoading]  = useState(false);
-  const [mode,     setMode]     = useState<"join" | "return">("join");
 
   const canSubmit = email.trim().length > 0 && password.length >= 6;
 
@@ -40,9 +40,7 @@ export default function AuthPage() {
     setLoading(true);
     setError("");
 
-    const { error: err } = mode === "join"
-      ? await signup(email, password)
-      : await login(email, password);
+    const { error: err } = await login(email.trim().toLowerCase(), password);
 
     if (err) {
       setError(err);
@@ -62,7 +60,7 @@ export default function AuthPage() {
       overflow: "hidden",
     }}>
 
-      {/* Primary ambient gold */}
+      {/* Ambient glows */}
       <div style={{
         position: "absolute", top: "-18%", left: "50%",
         transform: "translateX(-50%)",
@@ -70,28 +68,22 @@ export default function AuthPage() {
         background: "radial-gradient(circle, rgba(201,168,76,1) 0%, transparent 70%)",
         filter: "blur(90px)", opacity: 0.068, pointerEvents: "none",
       }} />
-
-      {/* Secondary ambient — depth */}
       <div style={{
         position: "absolute", bottom: "-12%", right: "8%",
         width: "46vw", height: "46vw", borderRadius: "50%",
         background: "radial-gradient(circle, rgba(201,168,76,1) 0%, transparent 70%)",
         filter: "blur(72px)", opacity: 0.026, pointerEvents: "none",
       }} />
-
-      {/* Vignette */}
       <div style={{
         position: "absolute", inset: 0, pointerEvents: "none",
         background: "radial-gradient(ellipse 110% 90% at 50% 50%, transparent 38%, rgba(0,0,0,0.60) 100%)",
       }} />
-
       <div className="grain" />
 
       <motion.div
         variants={screen}
         initial="initial"
         animate="animate"
-        exit="exit"
         style={{
           position: "relative", zIndex: 10,
           width: "100%", maxWidth: 380,
@@ -99,8 +91,8 @@ export default function AuthPage() {
           display: "flex", flexDirection: "column",
         }}
       >
-        {/* Wordmark + tagline */}
-        <motion.div variants={line} style={{ marginBottom: 56, textAlign: "center" }}>
+        {/* Wordmark */}
+        <motion.div variants={line} style={{ marginBottom: 52, textAlign: "center" }}>
           <span style={{
             fontSize: "1.125rem", fontWeight: 700,
             letterSpacing: "0.38em", paddingLeft: "0.38em",
@@ -111,39 +103,11 @@ export default function AuthPage() {
             fontSize: "0.5625rem", fontWeight: 500,
             letterSpacing: "0.14em", textTransform: "uppercase",
             color: "rgba(255,255,255,0.34)", display: "block",
-          }}>Private fitness network</span>
-        </motion.div>
-
-        {/* Mode tabs */}
-        <motion.div variants={line} style={{
-          display: "flex", marginBottom: 44,
-          borderBottom: "1px solid rgba(255,255,255,0.07)",
-        }}>
-          {(["join", "return"] as const).map(m => (
-            <button
-              key={m}
-              onClick={() => { setMode(m); setError(""); }}
-              style={{
-                flex: 1, paddingBottom: 14,
-                background: "none", border: "none",
-                fontSize: "0.8125rem",
-                fontWeight: mode === m ? 600 : 400,
-                color: mode === m ? "#fff" : "rgba(255,255,255,0.26)",
-                cursor: "pointer",
-                borderBottom: `1px solid ${mode === m ? "rgba(201,168,76,0.70)" : "transparent"}`,
-                marginBottom: -1,
-                letterSpacing: "0.025em",
-                transition: "color 0.22s ease, border-color 0.22s ease",
-                textAlign: "left",
-              }}
-            >
-              {m === "join" ? "Join" : "Return"}
-            </button>
-          ))}
+          }}>Welcome back</span>
         </motion.div>
 
         {/* Inputs */}
-        <motion.div variants={line} style={{ display: "flex", flexDirection: "column", marginBottom: 8 }}>
+        <motion.div variants={line} style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 8 }}>
           <input
             type="email"
             placeholder="Email"
@@ -162,11 +126,11 @@ export default function AuthPage() {
           />
           <input
             type="password"
-            placeholder="Password  (6+ characters)"
+            placeholder="Password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             onKeyDown={e => e.key === "Enter" && handleSubmit()}
-            autoComplete={mode === "join" ? "new-password" : "current-password"}
+            autoComplete="current-password"
             style={{
               width: "100%", padding: "15px 0",
               background: "none", border: "none",
@@ -204,38 +168,56 @@ export default function AuthPage() {
             style={{
               width: "100%", padding: "20px 24px",
               borderRadius: "14px", border: "none",
-              background: !canSubmit
-                ? "rgba(255,255,255,0.04)"
-                : "rgba(255,255,255,0.93)",
+              background: canSubmit
+                ? "rgba(255,255,255,0.93)"
+                : "rgba(255,255,255,0.04)",
               fontSize: "0.9375rem", fontWeight: 700, letterSpacing: "0.015em",
-              color: !canSubmit ? "rgba(255,255,255,0.22)" : "#0A0A0A",
-              cursor: !canSubmit ? "not-allowed" : "pointer",
-              boxShadow: !canSubmit
-                ? "none"
-                : shadow.goldCTA.replace(/201,168,76/g, "255,255,255").replace("0.32", "0.10"),
+              color: canSubmit ? "#0A0A0A" : "rgba(255,255,255,0.22)",
+              cursor: canSubmit ? "pointer" : "not-allowed",
+              boxShadow: canSubmit
+                ? "0 2px 24px rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.08) inset"
+                : "none",
               transition: "background 0.28s ease, box-shadow 0.28s ease, color 0.22s ease",
             }}
           >
             <AnimatePresence mode="wait" initial={false}>
               <motion.span
-                key={`${mode}-${loading}`}
+                key={loading ? "l" : "i"}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0, transition: { duration: 0.22, ease: E } }}
-                exit={{ opacity: 0, y: -4, transition: { duration: 0.14, ease: EX } }}
+                exit={{ opacity: 0, y: -5, transition: { duration: 0.14, ease: EX } }}
                 style={{ display: "block" }}
               >
-                {loading ? "—" : mode === "join" ? "Create account" : "Sign in"}
+                {loading ? "—" : "Sign in"}
               </motion.span>
             </AnimatePresence>
           </motion.button>
+        </motion.div>
+
+        {/* New user link */}
+        <motion.div variants={line} style={{ textAlign: "center", marginTop: 28 }}>
+          <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.28)" }}>
+            New here?{" "}
+          </span>
+          <Link
+            href="/welcome"
+            style={{
+              fontSize: "0.75rem", fontWeight: 600,
+              color: "rgba(201,168,76,0.72)",
+              textDecoration: "none",
+              letterSpacing: "0.01em",
+            }}
+          >
+            Join ELVN →
+          </Link>
         </motion.div>
 
         {/* Footer */}
         <motion.p variants={line} style={{
           textAlign: "center",
           fontSize: "0.625rem", fontWeight: 400,
-          color: "rgba(255,255,255,0.30)",
-          marginTop: 32, letterSpacing: "0.06em",
+          color: "rgba(255,255,255,0.22)",
+          marginTop: 36, letterSpacing: "0.06em",
           textTransform: "uppercase",
           lineHeight: 1.8,
         }}>

@@ -1,22 +1,25 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import type { Challenge, Tier } from "./challengeData";
 import { ALL_CHALLENGES } from "./challengeData";
+import { supabase } from "./supabaseClient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface CreateChallengeConfig {
-  isPublic:  boolean;
-  memberCap: number;
-  title:     string;
-  tagline:   string;
-  category:  string;
-  stepGoal:  number;
-  proofType: string;
-  minStreak: number;
-  duration:  number;
-  entry:     number;
+  isPublic:        boolean;
+  memberCap:       number;
+  title:           string;
+  tagline:         string;
+  category:        string;
+  stepGoal:        number;
+  proofType:       string;
+  minStreak:       number;
+  duration:        number;
+  entry:           number;
+  creatorName:     string;
+  creatorInitials: string;
 }
 
 export interface ProofEntry {
@@ -26,83 +29,55 @@ export interface ProofEntry {
   streak:         number;
 }
 
+export interface Transaction {
+  id:        string;
+  label:     string;
+  coins:     number;
+  isDebit:   boolean;
+  emoji:     string;
+  category:  "Win" | "Streak" | "Proof" | "Entry" | "Bonus";
+  timestamp: number;
+}
+
 interface AppStore {
   coins:             number;
   streak:            number;
   longestStreak:     number;
-  lastProofDate:     string | null;  // "YYYY-MM-DD"
-  provedToday:       boolean;        // derived: lastProofDate === today
+  lastProofDate:     string | null;
+  provedToday:       boolean;
   proofLog:          ProofEntry[];
+  transactions:      Transaction[];
   joined:            Set<number>;
   recovering:        Set<number>;
-  proofSent:         Set<number>;    // resets each calendar day
+  proofSent:         Set<number>;
   shielded:          Set<number>;
   shields:           number;
   createdChallenges: Challenge[];
+  claimedChallenges: Set<number>;
   joinChallenge:    (id: number, entry: number) => void;
   sendProof:        (id: number) => void;
   activateShield:   (id: number) => void;
   createChallenge:  (config: CreateChallengeConfig) => Challenge;
-}
-
-// ─── Persistence ──────────────────────────────────────────────────────────────
-
-const STORE_KEY = "elvn_app_store";
-
-interface PersistedStore {
-  coins:             number;
-  streak:            number;
-  longestStreak:     number;
-  lastProofDate:     string | null;
-  proofSentDate:     string | null;  // date proofSent Set was populated
-  shields:           number;
-  joined:            number[];
-  recovering:        number[];
-  proofSent:         number[];
-  shielded:          number[];
-  proofLog:          ProofEntry[];
-  createdChallenges: Challenge[];
-}
-
-function loadStore(): PersistedStore | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(STORE_KEY);
-    return raw ? (JSON.parse(raw) as PersistedStore) : null;
-  } catch {
-    return null;
-  }
+  addCoins:         (amount: number, label: string, category: Transaction["category"], emoji?: string) => void;
+  claimPrize:       (id: number, amount: number, title: string) => void;
 }
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
 export function todayStr(): string {
-  return new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  return new Date().toISOString().slice(0, 10);
 }
 
 function yesterdayStr(): string {
   return new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
 }
 
-// ─── Streak initialization ────────────────────────────────────────────────────
-// Handles both fresh starts and daily reset on app reopen.
-// Migration safety: if lastProofDate is null (legacy users), preserve existing streak.
-
-function computeInitialStreak(saved: PersistedStore | null): number {
-  const currentStreak = saved?.streak ?? 0;
-  const lastDate      = saved?.lastProofDate ?? null;
-
-  // New user or legacy account with no date recorded → keep whatever streak is saved
-  if (lastDate === null) return currentStreak;
-
+function computeStreak(saved: number, lastDate: string | null): number {
+  if (!lastDate) return saved;
   const t = todayStr();
   const y = yesterdayStr();
-
-  // Streak is intact if they proved today or yesterday (still have until midnight)
-  if (lastDate === t || lastDate === y) return currentStreak;
-
-  // Missed at least one full day → streak breaks
-  return 0;
+  if (lastDate === t || lastDate === y) return saved;
+  return 0; // missed a day
 }
 
 // ─── Category maps ────────────────────────────────────────────────────────────
@@ -140,91 +115,165 @@ const Ctx = createContext<AppStore | null>(null);
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const saved = loadStore();
+  // userId ref for background Supabase writes (avoids stale closures)
+  const uidRef = useRef<string | null>(null);
 
-  // ── State initialization ────────────────────────────────────────────────────
-  // All lazy initializers run once at mount. streak is computed from date logic
-  // so that a missed day resets the streak immediately on next app open.
+  // ── State ──────────────────────────────────────────────────────────────────
+  const [coins,             setCoins]             = useState(25000);
+  const [streak,            setStreak]            = useState(0);
+  const [longestStreak,     setLongestStreak]     = useState(0);
+  const [lastProofDate,     setLastProofDate]     = useState<string | null>(null);
+  const [shields,           setShields]           = useState(2);
+  const [joined,            setJoined]            = useState<Set<number>>(() => new Set([1]));
+  const [recovering,        setRecovering]        = useState<Set<number>>(() => new Set());
+  const [proofSent,         setProofSent]         = useState<Set<number>>(() => new Set());
+  const [shielded,          setShielded]          = useState<Set<number>>(() => new Set());
+  const [claimedChallenges, setClaimedChallenges] = useState<Set<number>>(() => new Set());
+  const [proofLog,          setProofLog]          = useState<ProofEntry[]>([]);
+  const [createdChallenges, setCreatedChallenges] = useState<Challenge[]>([]);
+  const [transactions,      setTransactions]      = useState<Transaction[]>([{
+    id: "starter", label: "Welcome bonus", coins: 25000,
+    isDebit: false, emoji: "🎁", category: "Bonus", timestamp: Date.now(),
+  }]);
 
-  const [coins,             setCoins]             = useState(saved?.coins ?? 25000);
-  const [streak,            setStreak]            = useState(() => computeInitialStreak(saved));
-  const [longestStreak,     setLongestStreak]     = useState(saved?.longestStreak ?? saved?.streak ?? 0);
-  const [lastProofDate,     setLastProofDate]     = useState<string | null>(saved?.lastProofDate ?? null);
-  const [proofSentDate,     setProofSentDate]     = useState<string | null>(saved?.proofSentDate ?? null);
-  const [shields,           setShields]           = useState(saved?.shields ?? 2);
-  const [joined,            setJoined]            = useState<Set<number>>(() => new Set(saved?.joined ?? [1]));
-  const [recovering,        setRecovering]        = useState<Set<number>>(() => new Set(saved?.recovering ?? [1]));
-
-  // proofSent resets each calendar day — don't restore stale entries from another day
-  const [proofSent, setProofSent] = useState<Set<number>>(() => {
-    if (!saved?.proofSentDate || saved.proofSentDate !== todayStr()) return new Set();
-    return new Set(saved.proofSent ?? []);
-  });
-
-  const [shielded,          setShielded]          = useState<Set<number>>(() => new Set(saved?.shielded ?? []));
-  const [proofLog,          setProofLog]          = useState<ProofEntry[]>(saved?.proofLog ?? []);
-  const [createdChallenges, setCreatedChallenges] = useState<Challenge[]>(saved?.createdChallenges ?? []);
-
-  // Derived: did the user already submit proof today?
   const provedToday = lastProofDate === todayStr();
 
-  // ── Persist on every state change ──────────────────────────────────────────
+  // ── Load from Supabase on auth state change ─────────────────────────────────
   useEffect(() => {
-    const payload: PersistedStore = {
-      coins, streak, longestStreak, lastProofDate, proofSentDate, shields,
-      joined:            [...joined],
-      recovering:        [...recovering],
-      proofSent:         [...proofSent],
-      shielded:          [...shielded],
-      proofLog,
-      createdChallenges,
-    };
-    localStorage.setItem(STORE_KEY, JSON.stringify(payload));
-  }, [coins, streak, longestStreak, lastProofDate, proofSentDate, shields,
-      joined, recovering, proofSent, shielded, proofLog, createdChallenges]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const uid = session?.user?.id ?? null;
+      uidRef.current = uid;
+      if (!uid) return;
+
+      const today = todayStr();
+
+      const [appStateRes, txnsRes, membershipsRes, todayProofsRes, allProofsRes, claimedRes, shieldedRes, createdRes] =
+        await Promise.all([
+          supabase.from("user_app_state").select("*").eq("user_id", uid).single(),
+          supabase.from("transactions").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(100),
+          supabase.from("challenge_memberships").select("challenge_id").eq("user_id", uid),
+          supabase.from("proof_submissions").select("challenge_id").eq("user_id", uid).gte("submitted_at", `${today}T00:00:00`),
+          supabase.from("proof_submissions").select("*").eq("user_id", uid).order("submitted_at", { ascending: false }).limit(50),
+          supabase.from("claimed_challenges").select("challenge_id").eq("user_id", uid),
+          supabase.from("shielded_challenges").select("challenge_id").eq("user_id", uid),
+          supabase.from("created_challenges").select("data").eq("user_id", uid),
+        ]);
+
+      // Core game state
+      const st = appStateRes.data;
+      if (st) {
+        const lastDate = st.last_proof_date as string | null;
+        setCoins(st.coins ?? 25000);
+        setStreak(computeStreak(st.streak ?? 0, lastDate));
+        setLongestStreak(st.longest_streak ?? 0);
+        setLastProofDate(lastDate);
+        setShields(st.shields ?? 2);
+      } else {
+        // First sign-in — seed initial rows
+        await supabase.from("user_app_state").insert({
+          user_id: uid, coins: 25000, streak: 0, longest_streak: 0, shields: 2,
+        });
+        await supabase.from("transactions").insert({
+          user_id: uid, label: "Welcome bonus", coins: 25000,
+          is_debit: false, emoji: "🎁", category: "Bonus",
+        });
+      }
+
+      // Transactions
+      if (txnsRes.data?.length) {
+        setTransactions(txnsRes.data.map(t => ({
+          id:        t.id,
+          label:     t.label,
+          coins:     t.coins,
+          isDebit:   t.is_debit,
+          emoji:     t.emoji,
+          category:  t.category as Transaction["category"],
+          timestamp: new Date(t.created_at).getTime(),
+        })));
+      }
+
+      // Joined challenges (always include challenge 1 as demo default)
+      setJoined(new Set([1, ...(membershipsRes.data?.map((m: { challenge_id: number }) => m.challenge_id) ?? [])]));
+
+      // Today's proofs
+      setProofSent(new Set(todayProofsRes.data?.map((p: { challenge_id: number }) => p.challenge_id) ?? []));
+
+      // Proof log
+      if (allProofsRes.data) {
+        setProofLog(allProofsRes.data.map((p: { challenge_id: number; challenge_title: string; submitted_at: string; streak_at_time: number }) => ({
+          challengeId:    p.challenge_id,
+          challengeTitle: p.challenge_title,
+          timestamp:      new Date(p.submitted_at).getTime(),
+          streak:         p.streak_at_time,
+        })));
+      }
+
+      setClaimedChallenges(new Set(claimedRes.data?.map((c: { challenge_id: number }) => c.challenge_id) ?? []));
+      setShielded(new Set(shieldedRes.data?.map((s: { challenge_id: number }) => s.challenge_id) ?? []));
+
+      if (createdRes.data) {
+        setCreatedChallenges(createdRes.data.map((d: { data: unknown }) => d.data as Challenge));
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
   function joinChallenge(id: number, entry: number) {
-    setCoins(c => c - entry);
+    const ch      = [...createdChallenges, ...ALL_CHALLENGES].find(c => c.id === id);
+    const newCoins = coins - entry;
+    setCoins(newCoins);
     setJoined(s => new Set([...s, id]));
+
+    const uid = uidRef.current;
+    if (!uid) return;
+
+    supabase.from("challenge_memberships")
+      .upsert({ user_id: uid, challenge_id: id, entry_coins: entry })
+      .then(() => {});
+
+    supabase.from("user_app_state")
+      .update({ coins: newCoins, updated_at: new Date().toISOString() })
+      .eq("user_id", uid)
+      .then(() => {});
+
+    if (entry > 0) {
+      const tx: Transaction = {
+        id: `join-${id}-${Date.now()}`,
+        label: `Joined ${ch?.title ?? "Challenge"}`,
+        coins: entry, isDebit: true, emoji: "⚡", category: "Entry",
+        timestamp: Date.now(),
+      };
+      setTransactions(prev => [tx, ...prev]);
+      supabase.from("transactions").insert({
+        user_id: uid, label: tx.label, coins: entry,
+        is_debit: true, emoji: "⚡", category: "Entry",
+      }).then(() => {});
+    }
   }
 
   function sendProof(id: number) {
     const t = todayStr();
     const y = yesterdayStr();
 
-    // Determine the effective proofSent set for today (may have been cleared on new day)
-    const effectiveProofSent: Set<number> =
-      proofSentDate === t ? proofSent : new Set();
+    if (proofSent.has(id)) return;
 
-    // Guard: this specific challenge was already proved today
-    if (effectiveProofSent.has(id)) return;
-
-    // Look up challenge title
-    const allChalls = [...createdChallenges, ...ALL_CHALLENGES];
-    const ch        = allChalls.find(c => c.id === id);
-
-    // ── Streak logic ──────────────────────────────────────────────────────────
-    // Rule 1: first proof of today counts toward the streak (once per day)
-    // Rule 2: consecutive days grow the streak
-    // Rule 3: a gap of ≥ 1 full day resets streak to 1
-
-    const alreadyProvedToday = lastProofDate === t;
+    const allChalls      = [...createdChallenges, ...ALL_CHALLENGES];
+    const ch             = allChalls.find(c => c.id === id);
+    const alreadyToday   = lastProofDate === t;
 
     let newStreak: number;
-    if (alreadyProvedToday) {
-      // Second+ challenge proved today — streak doesn't change
+    if (alreadyToday) {
       newStreak = streak;
     } else if (!lastProofDate || lastProofDate === y) {
-      // First proof ever, OR consecutive day
       newStreak = streak + 1;
     } else {
-      // Gap detected (this path is a safety net; normally handled on mount)
       newStreak = 1;
     }
-
     const newLongest = Math.max(longestStreak, newStreak);
+    const newCoins   = coins + 50;
 
     const entry: ProofEntry = {
       challengeId:    id,
@@ -232,20 +281,93 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       timestamp:      Date.now(),
       streak:         newStreak,
     };
+    const proofTx: Transaction = {
+      id: `proof-${id}-${Date.now()}`,
+      label: `Proof · ${ch?.title ?? "Challenge"}`,
+      coins: 50, isDebit: false, emoji: "📸", category: "Proof",
+      timestamp: Date.now(),
+    };
 
     setProofLog(prev => [entry, ...prev.slice(0, 49)]);
-    setProofSent(new Set([...effectiveProofSent, id]));
-    setProofSentDate(t);
+    setProofSent(new Set([...proofSent, id]));
     setStreak(newStreak);
     setLongestStreak(newLongest);
-    if (!alreadyProvedToday) setLastProofDate(t);
+    if (!alreadyToday) setLastProofDate(t);
+    setCoins(newCoins);
+    setTransactions(prev => [proofTx, ...prev]);
+
+    const uid = uidRef.current;
+    if (!uid) return;
+
+    supabase.from("proof_submissions").insert({
+      user_id: uid, challenge_id: id,
+      challenge_title: ch?.title ?? "Challenge",
+      streak_at_time: newStreak,
+    }).then(() => {});
+
+    supabase.from("transactions").insert({
+      user_id: uid, label: proofTx.label, coins: 50,
+      is_debit: false, emoji: "📸", category: "Proof",
+    }).then(() => {});
+
+    supabase.from("user_app_state").update({
+      coins:           newCoins,
+      streak:          newStreak,
+      longest_streak:  newLongest,
+      last_proof_date: t,
+      updated_at:      new Date().toISOString(),
+    }).eq("user_id", uid).then(() => {});
+  }
+
+  function claimPrize(id: number, amount: number, title: string) {
+    if (claimedChallenges.has(id)) return;
+    setClaimedChallenges(prev => new Set([...prev, id]));
+    addCoins(amount, `Won ${title}`, "Win", "🏆");
+
+    const uid = uidRef.current;
+    if (!uid) return;
+
+    supabase.from("claimed_challenges").insert({
+      user_id: uid, challenge_id: id, prize_coins: amount,
+    }).then(() => {});
+  }
+
+  function addCoins(amount: number, label: string, category: Transaction["category"], emoji = "💰") {
+    const newCoins = coins + amount;
+    setCoins(newCoins);
+    const tx: Transaction = {
+      id: `coin-${Date.now()}`, label, coins: amount,
+      isDebit: false, emoji, category, timestamp: Date.now(),
+    };
+    setTransactions(prev => [tx, ...prev]);
+
+    const uid = uidRef.current;
+    if (!uid) return;
+
+    supabase.from("transactions").insert({
+      user_id: uid, label, coins: amount,
+      is_debit: false, emoji, category,
+    }).then(() => {});
+
+    supabase.from("user_app_state").update({
+      coins: newCoins, updated_at: new Date().toISOString(),
+    }).eq("user_id", uid).then(() => {});
   }
 
   function activateShield(id: number) {
     if (shields < 1 || shielded.has(id)) return;
-    setShields(s => s - 1);
+    const newShields = shields - 1;
+    setShields(newShields);
     setShielded(s => new Set([...s, id]));
     setRecovering(s => { const n = new Set(s); n.delete(id); return n; });
+
+    const uid = uidRef.current;
+    if (!uid) return;
+
+    supabase.from("shielded_challenges").insert({ user_id: uid, challenge_id: id }).then(() => {});
+    supabase.from("user_app_state").update({
+      shields: newShields, updated_at: new Date().toISOString(),
+    }).eq("user_id", uid).then(() => {});
   }
 
   function createChallenge(config: CreateChallengeConfig): Challenge {
@@ -282,25 +404,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       activeNow:       1,
       socialBlip:      `${config.title} just launched`,
       missedYesterday: 0,
-      creator:    { name: "Arjun Sharma", initials: "AS", bg: "linear-gradient(135deg,#7A4A18,#3A2008)" },
+      creator:    { name: config.creatorName || "ELVN Member", initials: config.creatorInitials || "EM", bg: "linear-gradient(135deg,#7A4A18,#3A2008)" },
       isPublic:   config.isPublic,
       inviteCode: config.isPublic ? undefined : generateInviteCode(),
       memberCap:  config.memberCap,
       stepGoal:   config.stepGoal > 0 ? config.stepGoal : undefined,
     };
 
-    if (config.entry > 0) setCoins(c => c - config.entry);
+    const newCoins = config.entry > 0 ? coins - config.entry : coins;
+    if (config.entry > 0) setCoins(newCoins);
     setJoined(s => new Set([...s, id]));
     setCreatedChallenges(prev => [challenge, ...prev]);
+
+    const uid = uidRef.current;
+    if (!uid) return challenge;
+
+    supabase.from("created_challenges").insert({ id, user_id: uid, data: challenge }).then(() => {});
+    supabase.from("challenge_memberships").insert({ user_id: uid, challenge_id: id, entry_coins: config.entry }).then(() => {});
+    if (config.entry > 0) {
+      supabase.from("user_app_state").update({
+        coins: newCoins, updated_at: new Date().toISOString(),
+      }).eq("user_id", uid).then(() => {});
+    }
+
     return challenge;
   }
 
   return (
     <Ctx.Provider value={{
       coins, streak, longestStreak, lastProofDate, provedToday,
-      proofLog, joined, recovering, proofSent, shielded, shields,
-      createdChallenges,
-      joinChallenge, sendProof, activateShield, createChallenge,
+      proofLog, transactions, joined, recovering, proofSent, shielded, shields,
+      createdChallenges, claimedChallenges,
+      joinChallenge, sendProof, activateShield, createChallenge, addCoins, claimPrize,
     }}>
       {children}
     </Ctx.Provider>

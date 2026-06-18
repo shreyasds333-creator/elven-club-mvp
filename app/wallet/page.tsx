@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Settings, Gift, Clock, TrendingUp, ChevronRight, ChevronDown, X, Zap } from "lucide-react";
 import { color, radius, typo, space, motion } from "@/lib/tokens";
 import { fmtCoins, rgb } from "@/lib/challengeData";
-import { useAppStore } from "@/lib/appStore";
+import { useAppStore, todayStr, type Transaction } from "@/lib/appStore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type RewardStatus = "UNLOCKED" | "ELITE ACCESS" | "STREAK EXCLUSIVE" | "LIMITED" | "NEW";
@@ -54,18 +54,20 @@ function groupTotal(items: CoinEvent[]): number {
 const DISC_SCORE = 87;
 const TIER_GOAL  = 50000;   // coins needed to reach Platinum tier
 
-// Coins earned per day this week
-const WEEKLY_COINS = [
-  { day: "M", coins: 0,     isToday: false },
-  { day: "T", coins: 50,    isToday: false },
-  { day: "W", coins: 3500,  isToday: false },
-  { day: "T", coins: 0,     isToday: false },
-  { day: "F", coins: 12110, isToday: false },
-  { day: "S", coins: 50,    isToday: false },
-  { day: "S", coins: 0,     isToday: true  },
-];
-const W_MAX = Math.max(...WEEKLY_COINS.map(w => w.coins), 1);
 const BAR_H = 36;
+const DAY_LABELS = ["S","M","T","W","T","F","S"] as const;
+
+function buildWeeklyCoins(txns: Transaction[]) {
+  return Array.from({ length: 7 }, (_, i) => {
+    const offset  = 6 - i;
+    const date    = new Date(Date.now() - offset * 86_400_000);
+    const dateStr = date.toISOString().slice(0, 10);
+    const coins   = txns
+      .filter(t => !t.isDebit && new Date(t.timestamp).toISOString().slice(0, 10) === dateStr)
+      .reduce((s, t) => s + t.coins, 0);
+    return { day: DAY_LABELS[date.getDay()], coins, isToday: offset === 0 };
+  });
+}
 
 const REWARDS: Reward[] = [
   {
@@ -130,28 +132,37 @@ const REWARDS: Reward[] = [
   },
 ];
 
-const COIN_GROUPS: CoinGroup[] = [
-  { date: "Today", items: [
-    { id: 1, desc: "Won 10K Daily Walk",     coins: 12000, isDebit: false, emoji: "🏆", category: "Win"    },
-    { id: 2, desc: "Streak bonus · 11 days", coins: 110,   isDebit: false, emoji: "🔥", category: "Streak" },
-    { id: 3, desc: "Proof uploaded",         coins: 50,    isDebit: false, emoji: "📸", category: "Proof"  },
-  ]},
-  { date: "May 22", items: [
-    { id: 4, desc: "Joined Summer Shred",    coins: 5000,  isDebit: true,  emoji: "⚡", category: "Entry"  },
-  ]},
-  { date: "May 15", items: [
-    { id: 5, desc: "Referral bonus",         coins: 500,   isDebit: false, emoji: "👥", category: "Bonus"  },
-  ]},
-  { date: "May 10", items: [
-    { id: 6, desc: "Won Discipline Mode",    coins: 3400,  isDebit: false, emoji: "🥇", category: "Win"    },
-  ]},
-];
+function buildCoinGroups(txns: Transaction[]): CoinGroup[] {
+  if (!txns.length) return [];
+  const t = todayStr();
+  const y = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const map = new Map<string, CoinEvent[]>();
+  for (const tx of txns) {
+    const date = new Date(tx.timestamp).toISOString().slice(0, 10);
+    const label = date === t ? "Today" : date === y ? "Yesterday" :
+      new Date(tx.timestamp).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+    const ev: CoinEvent = {
+      id: tx.timestamp,
+      desc: tx.label,
+      coins: tx.coins,
+      isDebit: tx.isDebit,
+      emoji: tx.emoji,
+      category: tx.category,
+    };
+    if (!map.has(label)) map.set(label, []);
+    map.get(label)!.push(ev);
+  }
+  return [...map.entries()].map(([date, items]) => ({ date, items }));
+}
 
-const WEEK_TOTAL = WEEKLY_COINS.reduce((s, d) => s + d.coins, 0);
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function WalletPage() {
-  const { coins: COINS, streak } = useAppStore();
+  const { coins: COINS, streak, transactions } = useAppStore();
+  const coinGroups  = buildCoinGroups(transactions);
+  const weeklyCoins = buildWeeklyCoins(transactions);
+  const wMax        = Math.max(...weeklyCoins.map(w => w.coins), 1);
+  const weekTotal   = weeklyCoins.reduce((s, d) => s + d.coins, 0);
   const router = useRouter();
 
   const [vaultExpanded, setVaultExpanded] = useState(false);
@@ -176,7 +187,7 @@ export default function WalletPage() {
       handler: () => router.push("/challenges"),
     },
     {
-      id: "history", label: "History",    sub: `${COIN_GROUPS.reduce((s,g)=>s+g.items.length,0)} entries`,
+      id: "history", label: "History",    sub: `${coinGroups.reduce((s,g)=>s+g.items.length,0)} entries`,
       clr: "#6098D8", bg: "rgba(96,152,216,0.08)", border: "rgba(96,152,216,0.20)",
       Icon: Clock,
       handler: () => historyRef.current?.scrollIntoView({ behavior: "smooth" }),
@@ -253,7 +264,7 @@ export default function WalletPage() {
                 {/* This week */}
                 <div style={{ flex:1 }}>
                   <p style={{ fontSize:"0.4375rem", fontWeight:600, letterSpacing:"0.10em", textTransform:"uppercase", color:"rgba(255,255,255,0.22)", margin:"0 0 5px" }}>This Week</p>
-                  <p style={{ fontSize:"1.0625rem", fontWeight:900, color:color.gold.bright, letterSpacing:"-0.04em", margin:"0 0 2px", lineHeight:1 }}>{WEEK_TOTAL.toLocaleString("en-IN")}</p>
+                  <p style={{ fontSize:"1.0625rem", fontWeight:900, color:color.gold.bright, letterSpacing:"-0.04em", margin:"0 0 2px", lineHeight:1 }}>{weekTotal.toLocaleString("en-IN")}</p>
                   <p style={{ fontSize:"0.4375rem", color:"rgba(201,168,76,0.55)", margin:0, fontWeight:500 }}>from proof & wins</p>
                 </div>
                 <div style={{ width:1, background:"rgba(255,255,255,0.07)", margin:"0 14px" }} />
@@ -289,9 +300,9 @@ export default function WalletPage() {
                 <div style={{ paddingTop:18 }}>
                   <p style={{ fontSize:"0.4375rem", fontWeight:600, letterSpacing:"0.11em", textTransform:"uppercase", color:"rgba(255,255,255,0.18)", margin:"0 0 10px" }}>Coins This Week</p>
                   <div style={{ display:"flex", gap:4, alignItems:"flex-end", paddingBottom:8, borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
-                    {WEEKLY_COINS.map((bar, i) => {
-                      const h = bar.coins === 0 ? 0 : Math.max(Math.round((bar.coins / W_MAX) * BAR_H), 5);
-                      const isHighest = bar.coins === W_MAX;
+                    {weeklyCoins.map((bar, i) => {
+                      const h = bar.coins === 0 ? 0 : Math.max(Math.round((bar.coins / wMax) * BAR_H), 5);
+                      const isHighest = bar.coins === wMax;
                       return (
                         <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
                           <div style={{ width:"100%", height:BAR_H, display:"flex", alignItems:"flex-end" }}>
@@ -416,7 +427,7 @@ export default function WalletPage() {
             <span style={{ fontSize:"0.5rem", color:"rgba(255,255,255,0.38)" }}>How you earned</span>
           </div>
 
-          {COIN_GROUPS.map((group, gi) => {
+          {coinGroups.map((group, gi) => {
             const total = groupTotal(group.items);
             return (
               <div key={group.date}>
