@@ -16,15 +16,4 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
   realtime: {
     params: { eventsPerSecond: 0 },
   },
-  global: {
-    fetch: async (url, options = {}) => {
-      const ctrl  = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 10_000);
-      try {
-        return await fetch(url, { ...options, signal: ctrl.signal });
-      } finally {
-        clearTimeout(timer);
-      }
-    },
-  },
 });
