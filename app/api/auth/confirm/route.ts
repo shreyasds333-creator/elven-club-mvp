@@ -1,9 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+const svcKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const url     = process.env.NEXT_PUBLIC_SUPABASE_URL
-  ?? "https://eaexrykltegvxnvxrmok.supabase.co";
+  || "https://eaexrykltegvxnvxrmok.supabase.co";
 
 export async function POST(req: NextRequest) {
   if (!svcKey) {
