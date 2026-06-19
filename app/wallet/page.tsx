@@ -178,10 +178,10 @@ export default function WalletPage() {
 
   const ACTIONS = [
     {
-      id: "buy",     label: "Buy Coins",  sub: "UPI · instant",
+      id: "buy",     label: "Buy Coins — Coming Soon",  sub: "Available soon",
       clr: "#4DC87A", bg: "rgba(77,200,122,0.08)", border: "rgba(77,200,122,0.20)",
       Icon: TrendingUp,
-      handler: () => setShowBuyCoins(true),
+      handler: null,
     },
     {
       id: "redeem",  label: "Redeem",     sub: `${fmtCoins(COINS)} available`,
@@ -382,8 +382,9 @@ export default function WalletPage() {
             <button
               key={a.id}
               className="action-card"
-              onClick={a.handler}
-              style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:8, padding:"14px 8px", borderRadius:radius.lg, background:a.bg, border:`1px solid ${a.border}`, cursor:"pointer", boxShadow:`inset 0 1px 0 rgba(255,255,255,0.05)` }}
+              onClick={a.handler ?? undefined}
+              disabled={!a.handler}
+              style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:8, padding:"14px 8px", borderRadius:radius.lg, background:a.bg, border:`1px solid ${a.border}`, cursor:a.handler ? "pointer" : "not-allowed", opacity:a.handler ? 1 : 0.4, boxShadow:`inset 0 1px 0 rgba(255,255,255,0.05)` }}
             >
               <div className="action-icon" style={{ width:36, height:36, borderRadius:"50%", background:`rgba(${rgb(a.clr)},0.12)`, border:`1px solid rgba(${rgb(a.clr)},0.20)`, display:"flex", alignItems:"center", justifyContent:"center" }}>
                 <a.Icon size={15} style={{ color:a.clr }} />
