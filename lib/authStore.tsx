@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const resolvedHandle = handle?.trim() || resolvedName.toLowerCase().replace(/\s+/g, "_");
     const initials       = buildInitials(resolvedName);
 
-    // Insert profile regardless of confirmation state so it's ready when user confirms
+    // Insert profile row
     await supabase.from("profiles").insert({
       id:       data.user.id,
       email:    email.trim().toLowerCase(),
@@ -105,9 +105,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       initials,
     });
 
-    // No session = email confirmation required
+    // If Supabase requires email confirmation, auto-confirm via server API
     if (!data.session) {
-      return { requiresConfirmation: true };
+      const res = await fetch("/api/auth/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: data.user.id }),
+      });
+
+      if (!res.ok) {
+        // Fallback: show check-email screen
+        return { requiresConfirmation: true };
+      }
+
+      // Now sign in to get the session
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (signInErr) return { requiresConfirmation: true };
     }
 
     setUser({ id: data.user.id, email: email.trim().toLowerCase(), name: resolvedName, handle: resolvedHandle, initials });
