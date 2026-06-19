@@ -78,6 +78,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string): Promise<{ error?: string }> => {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+
+    // Email not confirmed — auto-confirm via server API then retry
+    if (error?.message?.toLowerCase().includes("email not confirmed")) {
+      const res = await fetch("/api/auth/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      if (res.ok) {
+        const { error: retryErr } = await supabase.auth.signInWithPassword({
+          email: email.trim().toLowerCase(), password,
+        });
+        if (retryErr) return { error: retryErr.message };
+        return {};
+      }
+      return { error: "Please check your email and click the confirmation link, then try again." };
+    }
+
     if (error) return { error: error.message };
     return {};
   }, []);
