@@ -65,8 +65,9 @@ export default function WelcomePage() {
   const [password,      setPassword]      = useState("");
   const [avail,         setAvail]         = useState<AvailStatus>("idle");
   const [error,         setError]         = useState("");
-  const [loading,       setLoading]       = useState(false);
-  const [entering,      setEntering]      = useState(false);
+  const [loading,              setLoading]              = useState(false);
+  const [entering,             setEntering]             = useState(false);
+  const [checkEmail,           setCheckEmail]           = useState("");
 
   // ── Auto-advance splash ──────────────────────────────────────────────────
   useEffect(() => {
@@ -109,8 +110,14 @@ export default function WelcomePage() {
 
     try { localStorage.setItem("elvn_onboarding", "1"); } catch {}
 
-    const { error: err } = await signup(email.trim().toLowerCase(), password, name.trim(), handle);
+    const { error: err, requiresConfirmation } = await signup(email.trim().toLowerCase(), password, name.trim(), handle);
     if (err) { setError(err); setLoading(false); return; }
+
+    if (requiresConfirmation) {
+      setLoading(false);
+      setCheckEmail(email.trim().toLowerCase());
+      return;
+    }
 
     setEntering(true);
     setTimeout(() => router.replace("/challenges"), 840);
@@ -521,6 +528,64 @@ export default function WelcomePage() {
                 color: "rgba(226,190,116,0.80)",
               }}
             >ELVN</motion.span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Check email screen ─────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {checkEmail && (
+          <motion.div
+            key="checkemail"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { duration: 0.40, ease: "easeIn" } }}
+            style={{
+              position: "absolute", inset: 0, zIndex: 30, background: "#000",
+              display: "flex", flexDirection: "column",
+              alignItems: "center", justifyContent: "center",
+              padding: "0 32px", textAlign: "center",
+            }}
+          >
+            <div className="grain" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.25 }}
+              animate={{ opacity: 0.10, scale: 1.6 }}
+              transition={{ duration: 0.82, ease: E }}
+              style={{
+                position: "absolute", width: "80vw", height: "80vw", borderRadius: "50%",
+                background: "radial-gradient(circle, rgba(201,168,76,1) 0%, transparent 68%)",
+                filter: "blur(80px)",
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.50, ease: E, delay: 0.20 }}
+              style={{ position: "relative", zIndex: 1 }}
+            >
+              <div style={{ fontSize: "2.5rem", marginBottom: 20 }}>📬</div>
+              <h2 style={{
+                fontSize: "1.5rem", fontWeight: 800,
+                letterSpacing: "-0.03em", color: "#fff",
+                margin: "0 0 12px",
+              }}>Check your email</h2>
+              <p style={{
+                fontSize: "0.875rem", color: "rgba(255,255,255,0.50)",
+                lineHeight: 1.6, margin: "0 0 8px",
+              }}>
+                We sent a confirmation link to
+              </p>
+              <p style={{
+                fontSize: "0.9375rem", fontWeight: 600,
+                color: "rgba(226,190,116,0.88)", margin: "0 0 32px",
+              }}>{checkEmail}</p>
+              <p style={{
+                fontSize: "0.75rem", color: "rgba(255,255,255,0.28)",
+                lineHeight: 1.6,
+              }}>
+                Click the link in the email to activate your account, then come back and sign in.
+              </p>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

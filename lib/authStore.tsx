@@ -17,7 +17,7 @@ interface AuthCtx {
   user:      ELVNUser | null;
   isLoading: boolean;
   login:  (email: string, password: string) => Promise<{ error?: string }>;
-  signup: (email: string, password: string, name?: string, handle?: string) => Promise<{ error?: string }>;
+  signup: (email: string, password: string, name?: string, handle?: string) => Promise<{ error?: string; requiresConfirmation?: boolean }>;
   logout: () => void;
 }
 
@@ -87,16 +87,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     name?:    string,
     handle?:  string,
-  ): Promise<{ error?: string }> => {
+  ): Promise<{ error?: string; requiresConfirmation?: boolean }> => {
     const { data, error } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password });
     if (error) return { error: error.message };
-    if (!data.user) return { error: "Signup failed — no user returned." };
+    if (!data.user) return { error: "Signup failed — please try again." };
 
-    const resolvedName    = name?.trim()  || email.split("@")[0].replace(/[._-]/g, " ");
-    const resolvedHandle  = handle?.trim() || resolvedName.toLowerCase().replace(/\s+/g, "_");
-    const initials        = buildInitials(resolvedName);
+    const resolvedName   = name?.trim()   || email.split("@")[0].replace(/[._-]/g, " ");
+    const resolvedHandle = handle?.trim() || resolvedName.toLowerCase().replace(/\s+/g, "_");
+    const initials       = buildInitials(resolvedName);
 
-    const { error: profileErr } = await supabase.from("profiles").insert({
+    // Insert profile regardless of confirmation state so it's ready when user confirms
+    await supabase.from("profiles").insert({
       id:       data.user.id,
       email:    email.trim().toLowerCase(),
       name:     resolvedName,
@@ -104,7 +105,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       initials,
     });
 
-    if (profileErr) return { error: profileErr.message };
+    // No session = email confirmation required
+    if (!data.session) {
+      return { requiresConfirmation: true };
+    }
 
     setUser({ id: data.user.id, email: email.trim().toLowerCase(), name: resolvedName, handle: resolvedHandle, initials });
     return {};
