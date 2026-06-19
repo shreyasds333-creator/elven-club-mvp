@@ -9,6 +9,7 @@ import {
   type Challenge, type FilterCat,
 } from "@/lib/challengeData";
 import { useAppStore } from "@/lib/appStore";
+import ProofCamera from "@/app/components/ProofCamera";
 
 // ─── Friend proof rings — mock social activity data ──────────────────────────
 type ProofStatus = "proved" | "live" | "shield" | "pending";
@@ -26,6 +27,7 @@ export default function ChallengesPage() {
   const [cat,            setCat]            = useState<FilterCat>("All");
   const [joining,        setJoining]        = useState<Set<number>>(new Set());
   const [insufficientId, setInsufficientId] = useState<number | null>(null);
+  const [proofCameraFor, setProofCameraFor] = useState<{ id: number; title: string } | null>(null);
 
   const store  = useAppStore();
   const router = useRouter();
@@ -151,7 +153,7 @@ export default function ChallengesPage() {
           recoveryActive={store.recovering.has(activeChallenge.id)}
           shieldActive={store.shielded.has(activeChallenge.id)}
           shieldsAvailable={store.shields}
-          onProof={() => router.push(`/camera?id=${activeChallenge.id}`)}
+          onProof={() => setProofCameraFor({ id: activeChallenge.id, title: activeChallenge.title })}
           onShield={() => activateShield(activeChallenge.id)}
         />
       )}
@@ -169,7 +171,7 @@ export default function ChallengesPage() {
           walletBalance={store.coins}
           insufficient={insufficientId === FEATURED.id}
           onJoin={() => handleJoin(FEATURED.id)}
-          onProof={() => router.push(`/camera?id=${FEATURED.id}`)}
+          onProof={() => setProofCameraFor({ id: FEATURED.id, title: FEATURED.title })}
           onShield={() => activateShield(FEATURED.id)}
         />
       )}
@@ -204,7 +206,7 @@ export default function ChallengesPage() {
                 recoveryActive={store.recovering.has(c.id)} shieldActive={store.shielded.has(c.id)}
                 shieldsAvailable={store.shields} walletBalance={store.coins}
                 insufficient={insufficientId === c.id}
-                onJoin={() => handleJoin(c.id)} onProof={() => router.push(`/camera?id=${c.id}`)} onShield={() => activateShield(c.id)}
+                onJoin={() => handleJoin(c.id)} onProof={() => setProofCameraFor({ id: c.id, title: c.title })} onShield={() => activateShield(c.id)}
               />
             ))}
           </div>
@@ -224,7 +226,7 @@ export default function ChallengesPage() {
                 recoveryActive={store.recovering.has(c.id)} shieldActive={store.shielded.has(c.id)}
                 shieldsAvailable={store.shields} walletBalance={store.coins}
                 insufficient={insufficientId === c.id}
-                onJoin={() => handleJoin(c.id)} onProof={() => router.push(`/camera?id=${c.id}`)} onShield={() => activateShield(c.id)}
+                onJoin={() => handleJoin(c.id)} onProof={() => setProofCameraFor({ id: c.id, title: c.title })} onShield={() => activateShield(c.id)}
               />
             ))}
           </div>
@@ -232,6 +234,15 @@ export default function ChallengesPage() {
       )}
 
       <div style={{ height: 28 }} />
+
+      {proofCameraFor && (
+        <ProofCamera
+          challengeId={proofCameraFor.id}
+          challengeTitle={proofCameraFor.title}
+          onSuccess={() => { store.sendProof(proofCameraFor.id); setProofCameraFor(null); }}
+          onClose={() => setProofCameraFor(null)}
+        />
+      )}
 
       <style>{`
         .cat-pill { transition: transform 0.16s cubic-bezier(.175,.885,.32,1.275) !important; }
