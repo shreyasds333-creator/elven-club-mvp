@@ -16,9 +16,11 @@ export interface ELVNUser {
 interface AuthCtx {
   user:      ELVNUser | null;
   isLoading: boolean;
-  login:  (email: string, password: string) => Promise<{ error?: string }>;
-  signup: (email: string, password: string, name?: string, handle?: string) => Promise<{ error?: string; requiresConfirmation?: boolean }>;
-  logout: () => void;
+  login:     (email: string, password: string) => Promise<{ error?: string }>;
+  signup:    (email: string, password: string, name?: string, handle?: string) => Promise<{ error?: string; requiresConfirmation?: boolean }>;
+  sendOtp:   (email: string, name?: string, handle?: string) => Promise<{ error?: string }>;
+  verifyOtp: (email: string, token: string) => Promise<{ error?: string }>;
+  logout:    () => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -149,13 +151,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return {};
   }, []);
 
+  const sendOtp = useCallback(async (email: string, name?: string, handle?: string): Promise<{ error?: string }> => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: {
+        shouldCreateUser: true,
+        data: name ? { name, handle } : undefined,
+      },
+    });
+    if (error) return { error: error.message };
+    return {};
+  }, []);
+
+  const verifyOtp = useCallback(async (email: string, token: string): Promise<{ error?: string }> => {
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: email.trim().toLowerCase(),
+      token,
+      type: "email",
+    });
+    if (error) return { error: error.message };
+    if (!data.user) return { error: "Verification failed. Try again." };
+
+    const existing = await fetchProfile(data.user.id);
+    if (!existing) {
+      const meta          = data.user.user_metadata ?? {};
+      const resolvedName  = meta.name  || email.split("@")[0].replace(/[._-]/g, " ");
+      const resolvedHandle= meta.handle|| resolvedName.toLowerCase().replace(/\s+/g, "_");
+      const initials      = buildInitials(resolvedName);
+      await supabase.from("profiles").upsert({
+        id: data.user.id, email: email.trim().toLowerCase(),
+        name: resolvedName, handle: resolvedHandle, initials,
+      });
+      setUser({ id: data.user.id, email: email.trim().toLowerCase(), name: resolvedName, handle: resolvedHandle, initials });
+    }
+    return {};
+  }, []);
+
   const logout = useCallback(() => {
-    supabase.auth.signOut(); // fire-and-forget
+    supabase.auth.signOut();
     setUser(null);
   }, []);
 
   return (
-    <Ctx.Provider value={{ user, isLoading, login, signup, logout }}>
+    <Ctx.Provider value={{ user, isLoading, login, signup, sendOtp, verifyOtp, logout }}>
       {children}
     </Ctx.Provider>
   );

@@ -213,6 +213,74 @@ export function timeToMidnightRaw(): { h: number; m: number; s: number } {
   };
 }
 
+// ─── DB types & mapper ───────────────────────────────────────────────────────
+
+export interface DbChallenge {
+  id:               number;
+  title:            string;
+  tagline:          string;
+  emoji:            string;
+  category:         string;
+  duration:         number;
+  entry_coins:      number;
+  prize_coins:      number;
+  max_participants: number;
+  proof_type:       string;
+  tier:             Tier;
+  accent_color:     string;
+  card_bg:          string;
+  is_live:          boolean;
+  is_public:        boolean;
+  creator_id:       string | null;
+  winners_count:    number;
+  created_at:       string;
+  // joined from profiles via creator_id
+  creator_name?:     string;
+  creator_initials?: string;
+  // aggregated
+  participant_count?: number;
+}
+
+export function dbToChallenge(row: DbChallenge): Challenge {
+  const daysPassed = Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000);
+  const daysLeft   = Math.max(0, row.duration - daysPassed);
+  return {
+    id:              row.id,
+    title:           row.title,
+    tagline:         row.tagline,
+    emoji:           row.emoji,
+    category:        row.category,
+    duration:        row.duration,
+    entry:           row.entry_coins,
+    prize:           row.prize_coins,
+    participants:    row.participant_count ?? 0,
+    maxParticipants: row.max_participants,
+    winnersCount:    row.winners_count ?? 3,
+    daysLeft,
+    tier:            row.tier,
+    accentColor:     row.accent_color,
+    cardBg:          row.card_bg,
+    trending:        false,
+    isLive:          row.is_live,
+    isPublic:        row.is_public,
+    friendsJoined:   [],
+    recentProofs:    [],
+    proofType:       row.proof_type,
+    minStreak:       0,
+    joinedToday:     0,
+    liveTicket:      row.is_live ? "Live now" : "Coming soon",
+    proofsToday:     0,
+    activeNow:       0,
+    socialBlip:      "",
+    missedYesterday: 0,
+    creator: row.creator_name ? {
+      name:     row.creator_name,
+      initials: row.creator_initials ?? row.creator_name.slice(0, 2).toUpperCase(),
+      bg:       "linear-gradient(135deg,#7A4A18,#3A2008)",
+    } : undefined,
+  };
+}
+
 export const PROOF_ICON: Record<string, string> = {
   "Camera snap": "📸", "Camera Proof": "📸", "2× Camera snap daily": "📸",
   "GPS tracked": "📍", "Step Tracking": "📍", "Check-in + Camera": "📍",

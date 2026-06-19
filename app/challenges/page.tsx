@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 import { color, radius, typo, space, motion, tierStyle } from "@/lib/tokens";
 import {
   ALL_CHALLENGES, CHALLENGES, FEATURED, FILTER_CATS, FILTER_EMOJI, PROOF_ICON,
-  fmt, fmtCoins, rgb, timeToMidnight,
-  type Challenge, type FilterCat,
+  fmt, fmtCoins, rgb, timeToMidnight, dbToChallenge,
+  type Challenge, type FilterCat, type DbChallenge,
 } from "@/lib/challengeData";
 import { useAppStore } from "@/lib/appStore";
 import ProofCamera from "@/app/components/ProofCamera";
@@ -28,13 +29,49 @@ export default function ChallengesPage() {
   const [joining,        setJoining]        = useState<Set<number>>(new Set());
   const [insufficientId, setInsufficientId] = useState<number | null>(null);
   const [proofCameraFor, setProofCameraFor] = useState<{ id: number; title: string } | null>(null);
+  const [dbChallenges,   setDbChallenges]   = useState<Challenge[]>([]);
 
   const store  = useAppStore();
   const router = useRouter();
 
+  useEffect(() => {
+    supabase
+      .from("challenges")
+      .select("*, profiles(name, initials)")
+      .eq("is_public", true)
+      .order("created_at", { ascending: false })
+      .then(async ({ data }) => {
+        if (!data?.length) return;
+
+        // Fetch participant counts in one query
+        const ids = data.map((r: DbChallenge) => r.id);
+        const { data: counts } = await supabase
+          .from("challenge_memberships")
+          .select("challenge_id")
+          .in("challenge_id", ids);
+
+        const countMap: Record<number, number> = {};
+        for (const row of counts ?? []) {
+          countMap[row.challenge_id] = (countMap[row.challenge_id] ?? 0) + 1;
+        }
+
+        const staticIds = new Set(ALL_CHALLENGES.map(c => c.id));
+        const mapped = (data as (DbChallenge & { profiles: { name: string; initials: string } | null })[])
+          .filter(r => !staticIds.has(r.id))
+          .map(r => dbToChallenge({
+            ...r,
+            creator_name:     r.profiles?.name,
+            creator_initials: r.profiles?.initials,
+            participant_count: countMap[r.id] ?? 0,
+          }));
+
+        setDbChallenges(mapped);
+      });
+  }, []);
+
   // Merge user-created challenges at the top of the discover list
-  const allDiscoverChallenges = [...store.createdChallenges, ...CHALLENGES];
-  const allLookup             = [...store.createdChallenges, ...ALL_CHALLENGES];
+  const allDiscoverChallenges = [...store.createdChallenges, ...dbChallenges, ...CHALLENGES];
+  const allLookup             = [...store.createdChallenges, ...dbChallenges, ...ALL_CHALLENGES];
 
   const activeChallenge = CHALLENGES.find(c => store.joined.has(c.id));
   const filtered     = allDiscoverChallenges.filter(c => cat === "All" || c.category.toLowerCase() === cat.toLowerCase());

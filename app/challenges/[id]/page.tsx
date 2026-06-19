@@ -6,6 +6,8 @@ import { color, radius, typo, space, motion, tierStyle } from "@/lib/tokens";
 import { ALL_CHALLENGES, fmt, fmtCoins, rgb, PROOF_ICON, timeToMidnight, timeToMidnightRaw, type Challenge } from "@/lib/challengeData";
 import { useAppStore } from "@/lib/appStore";
 import { useAuth } from "@/lib/authStore";
+import ProofCamera from "@/app/components/ProofCamera";
+import { supabase } from "@/lib/supabaseClient";
 
 // ─── Leaderboard mock ────────────────────────────────────────────────────────
 const LB = [
@@ -37,6 +39,16 @@ const RECOVERY = [
   { id: "podcast",    emoji: "🎧", title: "Wellness Podcast",     desc: "10 minutes of mindset and recovery audio." },
 ];
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function relTime(iso: string): string {
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ChallengeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -62,6 +74,9 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
     return { d: c?.daysLeft ?? 0, h, m, s };
   });
 
+  const [realFeed,         setRealFeed]         = useState<{ initials: string; bg: string; name: string; action: string; time: string }[]>([]);
+  const [realParticipants, setRealParticipants] = useState<number | null>(null);
+
   useEffect(() => {
     const t = setInterval(() => {
       setCountdown(p => {
@@ -76,6 +91,38 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    const challengeId = parseInt(id);
+    if (isNaN(challengeId)) return;
+
+    supabase
+      .from("proof_submissions")
+      .select("created_at, challenge_title, user_id, profiles(name, initials)")
+      .eq("challenge_id", challengeId)
+      .order("created_at", { ascending: false })
+      .limit(6)
+      .then(({ data }) => {
+        if (!data?.length) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setRealFeed((data as any[]).map(row => {
+          const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+          return {
+            initials: profile?.initials ?? "??",
+            bg:       "linear-gradient(135deg,#145C38,#062010)",
+            name:     profile?.name ?? "Member",
+            action:   "submitted proof ✓",
+            time:     relTime(row.created_at),
+          };
+        }));
+      });
+
+    supabase
+      .from("challenge_memberships")
+      .select("id", { count: "exact", head: true })
+      .eq("challenge_id", challengeId)
+      .then(({ count }) => { if (count !== null) setRealParticipants(count); });
+  }, [id]);
+
   if (!c) return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: color.text.secondary }}>
       <span style={{ fontSize: 32 }}>🔍</span>
@@ -88,7 +135,6 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
   const completionPct    = Math.round((dayNum / c.duration) * 100);
   const isShieldEligible = c.duration >= 14;
   const canAfford        = walletBalance >= c.entry;
-  const spotsLeft        = c.maxParticipants - c.participants;
   const tier             = tierStyle[c.tier];
   const prizeAmount      = Math.round(c.prize * 0.80 / c.winnersCount);
   const canClaimPrize    = joined && proofSent && !claimed;
@@ -224,7 +270,7 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
       <div style={{ display: "flex", margin: `0 ${space.screenX}px`, marginTop: 16, borderRadius: radius.lg, background: color.bg.card, border: `1px solid ${color.border.subtle}`, overflow: "hidden" }}>
         {[
           { label: "Entry", value: fmt(c.entry), sub: `⟡ ${fmtCoins(c.entry)} coins` },
-          { label: "Members", value: `${c.participants}/${c.maxParticipants}`, sub: `${spotsLeft} spot${spotsLeft !== 1 ? "s" : ""} left` },
+          { label: "Members", value: `${realParticipants ?? c.participants}/${c.maxParticipants}`, sub: `${c.maxParticipants - (realParticipants ?? c.participants)} spot${c.maxParticipants - (realParticipants ?? c.participants) !== 1 ? "s" : ""} left` },
           { label: "Days Left", value: `${c.daysLeft}d`, sub: `${c.duration}d total` },
         ].map((s, i) => (
           <div key={i} style={{ flex: 1, padding: "14px 0", textAlign: "center", borderRight: i < 2 ? `1px solid ${color.border.faint}` : "none" }}>
@@ -397,9 +443,12 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
       {/* ── Social Activity Feed ──────────────────────────────────────────────── */}
       <SectionTitle title="Live Activity" icon="●" iconColor="#4DC87A" animate />
       <div style={{ margin: `0 ${space.screenX}px`, borderRadius: radius.lg, background: color.bg.card, border: `1px solid ${color.border.subtle}`, overflow: "hidden" }}>
-        {[...FEED, ...(c.recentProofs.slice(0,2).map((p, i) => ({
-          type: "proof" as const, initials: p.initials, bg: p.bg, name: p.initials, action: p.action, time: p.timeAgo,
-        })))].slice(0, 6).map((item, i) => (
+        {(realFeed.length > 0
+          ? realFeed.map(r => ({ type: "proof" as const, ...r }))
+          : [...FEED, ...(c.recentProofs.slice(0,2).map(p => ({
+              type: "proof" as const, initials: p.initials, bg: p.bg, name: p.initials, action: p.action, time: p.timeAgo,
+            })))]
+        ).slice(0, 6).map((item, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 16px", borderBottom: i < 5 ? `1px solid ${color.border.faint}` : "none", animation: `feedIn 0.28s ease ${i * 0.05}s both` }}>
             {item.type === "system" ? (
               <>
@@ -746,84 +795,16 @@ function JoinModal({ c, walletBalance, onConfirm, onClose }: {
 }
 
 // ─── Proof Modal ──────────────────────────────────────────────────────────────
-function ProofModal({ c, dayNum, proofSent, onSubmit, onClose }: {
+function ProofModal({ c, onSubmit, onClose }: {
   c: Challenge; dayNum: number; proofSent: boolean; onSubmit: () => void; onClose: () => void;
 }) {
-  const [snapped, setSnapped] = useState(false);
-
-  function handleSnap() {
-    setSnapped(true);
-  }
-
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 300, animation: "overlayIn 0.2s ease both" }}>
-      <div onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(8px)" }} />
-      <div style={{
-        position: "absolute", bottom: 0, left: 0, right: 0,
-        background: color.bg.deep, borderTop: `1px solid ${color.border.default}`,
-        borderRadius: `${radius.xl} ${radius.xl} 0 0`,
-        padding: `24px ${space.screenX}px calc(32px + env(safe-area-inset-bottom, 0px))`,
-        animation: "sheetUp 0.32s cubic-bezier(.175,.885,.32,1.1) both",
-      }}>
-        <div style={{ width: 36, height: 4, borderRadius: 2, background: color.border.default, margin: "0 auto 20px" }} />
-
-        {proofSent ? (
-          // Success state
-          <div style={{ textAlign: "center", padding: "20px 0 10px", animation: "proofSuccess 0.5s cubic-bezier(.175,.885,.32,1.275) both" }}>
-            <div style={{ fontSize: 52, marginBottom: 12 }}>✅</div>
-            <div style={{ fontSize: "1.375rem", fontWeight: 900, color: "#4DC87A", letterSpacing: "-0.04em", marginBottom: 6 }}>Proof submitted!</div>
-            <div style={{ fontSize: "0.875rem", color: color.text.secondary, marginBottom: 4 }}>Day {dayNum} · Streak maintained 🔥</div>
-            <div style={{ fontSize: "0.75rem", color: color.text.muted }}>Your entry is still in the game.</div>
-          </div>
-        ) : (
-          <>
-            {/* Header */}
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: "1.125rem", fontWeight: 800, color: color.text.primary, letterSpacing: "-0.025em", marginBottom: 4 }}>
-                {c.emoji} Day {dayNum} Proof
-              </div>
-              <div style={{ fontSize: "0.75rem", color: color.text.tertiary }}>{c.title} · {c.proofType}</div>
-            </div>
-
-            {/* Camera zone */}
-            {snapped ? (
-              <div style={{ height: 180, borderRadius: radius.lg, background: "linear-gradient(135deg, rgba(4,120,87,0.30) 0%, rgba(77,200,122,0.15) 100%)", border: "1px solid rgba(77,200,122,0.36)", marginBottom: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, animation: "proofSuccess 0.4s cubic-bezier(.175,.885,.32,1.275) both" }}>
-                <span style={{ fontSize: 36 }}>✅</span>
-                <div style={{ fontSize: "0.875rem", fontWeight: 700, color: "#4DC87A" }}>Photo captured</div>
-                <div style={{ fontSize: "0.6875rem", color: "rgba(77,200,122,0.65)" }}>Tap submit to send proof</div>
-              </div>
-            ) : (
-              <button onClick={handleSnap} style={{ width: "100%", height: 180, borderRadius: radius.lg, background: "rgba(255,255,255,0.03)", border: `2px dashed ${color.border.default}`, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 16 }}>
-                <span style={{ fontSize: 36 }}>📸</span>
-                <div>
-                  <div style={{ fontSize: "0.875rem", fontWeight: 700, color: color.text.secondary, marginBottom: 3 }}>Tap to take photo</div>
-                  <div style={{ fontSize: "0.625rem", color: color.text.muted }}>Live camera only · No gallery uploads</div>
-                </div>
-              </button>
-            )}
-
-            {/* Info banner */}
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 12px", borderRadius: radius.md, background: "rgba(255,255,255,0.03)", border: `1px solid ${color.border.faint}`, marginBottom: 18 }}>
-              <span style={{ fontSize: 10 }}>🔒</span>
-              <span style={{ fontSize: "0.625rem", color: color.text.muted }}>ONLY live camera snaps count. No gallery uploads. Keeps the community honest.</span>
-            </div>
-
-            {/* Submit */}
-            <button
-              onClick={onSubmit}
-              disabled={!snapped}
-              style={{ width: "100%", padding: "14px", borderRadius: radius.lg, background: snapped ? "rgba(77,200,122,0.14)" : "rgba(255,255,255,0.04)", border: `1px solid ${snapped ? "rgba(77,200,122,0.38)" : color.border.subtle}`, cursor: snapped ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 12, opacity: snapped ? 1 : 0.5 }}>
-              <span style={{ fontSize: 14 }}>📤</span>
-              <span style={{ fontSize: "0.9375rem", fontWeight: 800, color: snapped ? "#4DC87A" : color.text.muted }}>Submit Proof</span>
-            </button>
-          </>
-        )}
-
-        <button onClick={onClose} style={{ width: "100%", padding: "11px", borderRadius: radius.lg, background: "transparent", border: "none", cursor: "pointer", fontSize: "0.875rem", color: color.text.muted }}>
-          {proofSent ? "Done" : "Cancel"}
-        </button>
-      </div>
-    </div>
+    <ProofCamera
+      challengeId={c.id}
+      challengeTitle={c.title}
+      onSuccess={() => { onSubmit(); }}
+      onClose={onClose}
+    />
   );
 }
 

@@ -24,30 +24,42 @@ const line = {
   animate: { opacity: 1, y: 0, transition: { duration: 0.56, ease: E } },
 };
 
+const INPUT: React.CSSProperties = {
+  width: "100%", padding: "15px 0",
+  background: "none", border: "none",
+  borderBottom: "1px solid rgba(255,255,255,0.10)",
+  fontSize: "0.9375rem", fontWeight: 400,
+  color: "#fff", outline: "none",
+  letterSpacing: "0.01em",
+};
+
 export default function AuthPage() {
-  const router = useRouter();
-  const { login } = useAuth();
+  const router               = useRouter();
+  const { sendOtp, verifyOtp } = useAuth();
 
-  const [email,    setEmail]    = useState("");
-  const [password, setPassword] = useState("");
-  const [error,    setError]    = useState("");
-  const [loading,  setLoading]  = useState(false);
+  const [email,   setEmail]   = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [error,   setError]   = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const canSubmit = email.trim().length > 0 && password.length >= 6;
-
-  async function handleSubmit() {
-    if (!canSubmit || loading) return;
+  async function handleSendOtp() {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed.includes("@") || loading) return;
     setLoading(true);
     setError("");
+    const { error: err } = await sendOtp(trimmed);
+    if (err) { setError(err); setLoading(false); return; }
+    setLoading(false);
+    setOtpSent(true);
+  }
 
-    const { error: err } = await login(email.trim().toLowerCase(), password);
-
-    if (err) {
-      setError(err);
-      setLoading(false);
-      return;
-    }
-
+  async function handleVerify() {
+    if (otpCode.length < 6 || loading) return;
+    setLoading(true);
+    setError("");
+    const { error: err } = await verifyOtp(email.trim().toLowerCase(), otpCode);
+    if (err) { setError(err); setLoading(false); return; }
     router.replace("/challenges");
   }
 
@@ -80,150 +92,258 @@ export default function AuthPage() {
       }} />
       <div className="grain" />
 
-      <motion.div
-        variants={screen}
-        initial="initial"
-        animate="animate"
-        style={{
-          position: "relative", zIndex: 10,
-          width: "100%", maxWidth: 380,
-          padding: `0 ${space.screenX}px`,
-          display: "flex", flexDirection: "column",
-        }}
-      >
-        {/* Wordmark */}
-        <motion.div variants={line} style={{ marginBottom: 52, textAlign: "center" }}>
-          <span style={{
-            fontSize: "1.125rem", fontWeight: 700,
-            letterSpacing: "0.38em", paddingLeft: "0.38em",
-            textTransform: "uppercase",
-            color: "rgba(226,190,116,0.88)", display: "block", marginBottom: 10,
-          }}>ELVN</span>
-          <span style={{
-            fontSize: "0.5625rem", fontWeight: 500,
-            letterSpacing: "0.14em", textTransform: "uppercase",
-            color: "rgba(255,255,255,0.34)", display: "block",
-          }}>Welcome back</span>
-        </motion.div>
-
-        {/* Inputs */}
-        <motion.div variants={line} style={{ display: "flex", flexDirection: "column", gap: 0, marginBottom: 8 }}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            autoCapitalize="none"
-            autoComplete="email"
+      <AnimatePresence mode="wait">
+        {!otpSent ? (
+          <motion.div
+            key="email"
+            variants={screen}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             style={{
-              width: "100%", padding: "15px 0",
-              background: "none", border: "none",
-              borderBottom: "1px solid rgba(255,255,255,0.10)",
-              fontSize: "0.9375rem", fontWeight: 400,
-              color: "#fff", outline: "none",
-              letterSpacing: "0.01em",
-            }}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSubmit()}
-            autoComplete="current-password"
-            style={{
-              width: "100%", padding: "15px 0",
-              background: "none", border: "none",
-              borderBottom: "1px solid rgba(255,255,255,0.10)",
-              fontSize: "0.9375rem", fontWeight: 400,
-              color: "#fff", outline: "none",
-              letterSpacing: "0.01em",
-            }}
-          />
-        </motion.div>
-
-        {/* Error */}
-        <AnimatePresence>
-          {error && (
-            <motion.p
-              key="err"
-              initial={{ opacity: 0, y: -6 }}
-              animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: E } }}
-              exit={{ opacity: 0, y: -4, transition: { duration: 0.16, ease: EX } }}
-              style={{
-                fontSize: "0.75rem", color: "rgba(255,80,80,0.80)",
-                margin: "12px 0 0", fontWeight: 400, lineHeight: 1.5,
-              }}
-            >{error}</motion.p>
-          )}
-        </AnimatePresence>
-
-        {/* CTA */}
-        <motion.div variants={line} style={{ marginTop: 28 }}>
-          <motion.button
-            onClick={handleSubmit}
-            disabled={!canSubmit || loading}
-            whileTap={canSubmit && !loading ? { scale: 0.968, y: 1 } : {}}
-            transition={{ type: "spring", stiffness: 500, damping: 32 }}
-            style={{
-              width: "100%", padding: "20px 24px",
-              borderRadius: "14px", border: "none",
-              background: canSubmit
-                ? "rgba(255,255,255,0.93)"
-                : "rgba(255,255,255,0.04)",
-              fontSize: "0.9375rem", fontWeight: 700, letterSpacing: "0.015em",
-              color: canSubmit ? "#0A0A0A" : "rgba(255,255,255,0.22)",
-              cursor: canSubmit ? "pointer" : "not-allowed",
-              boxShadow: canSubmit
-                ? "0 2px 24px rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.08) inset"
-                : "none",
-              transition: "background 0.28s ease, box-shadow 0.28s ease, color 0.22s ease",
+              position: "relative", zIndex: 10,
+              width: "100%", maxWidth: 380,
+              padding: `0 ${space.screenX}px`,
+              display: "flex", flexDirection: "column",
             }}
           >
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={loading ? "l" : "i"}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0, transition: { duration: 0.22, ease: E } }}
-                exit={{ opacity: 0, y: -5, transition: { duration: 0.14, ease: EX } }}
-                style={{ display: "block" }}
-              >
-                {loading ? "—" : "Sign in"}
-              </motion.span>
+            {/* Wordmark */}
+            <motion.div variants={line} style={{ marginBottom: 52, textAlign: "center" }}>
+              <span style={{
+                fontSize: "1.125rem", fontWeight: 700,
+                letterSpacing: "0.38em", paddingLeft: "0.38em",
+                textTransform: "uppercase",
+                color: "rgba(226,190,116,0.88)", display: "block", marginBottom: 10,
+              }}>ELVN</span>
+              <span style={{
+                fontSize: "0.5625rem", fontWeight: 500,
+                letterSpacing: "0.14em", textTransform: "uppercase",
+                color: "rgba(255,255,255,0.34)", display: "block",
+              }}>Welcome back</span>
+            </motion.div>
+
+            {/* Email input */}
+            <motion.div variants={line} style={{ marginBottom: 8 }}>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleSendOtp()}
+                autoCapitalize="none"
+                autoComplete="email"
+                autoFocus
+                style={INPUT}
+              />
+            </motion.div>
+
+            {/* Error */}
+            <AnimatePresence>
+              {error && (
+                <motion.p
+                  key="err"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: E } }}
+                  exit={{ opacity: 0, y: -4, transition: { duration: 0.16, ease: EX } }}
+                  style={{
+                    fontSize: "0.75rem", color: "rgba(255,80,80,0.80)",
+                    margin: "12px 0 0", fontWeight: 400, lineHeight: 1.5,
+                  }}
+                >{error}</motion.p>
+              )}
             </AnimatePresence>
-          </motion.button>
-        </motion.div>
 
-        {/* New user link */}
-        <motion.div variants={line} style={{ textAlign: "center", marginTop: 28 }}>
-          <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.28)" }}>
-            New here?{" "}
-          </span>
-          <Link
-            href="/welcome"
+            {/* CTA */}
+            <motion.div variants={line} style={{ marginTop: 28 }}>
+              <motion.button
+                onClick={handleSendOtp}
+                disabled={!email.includes("@") || loading}
+                whileTap={email.includes("@") && !loading ? { scale: 0.968, y: 1 } : {}}
+                transition={{ type: "spring", stiffness: 500, damping: 32 }}
+                style={{
+                  width: "100%", padding: "20px 24px",
+                  borderRadius: "14px", border: "none",
+                  background: email.includes("@")
+                    ? "rgba(255,255,255,0.93)"
+                    : "rgba(255,255,255,0.04)",
+                  fontSize: "0.9375rem", fontWeight: 700, letterSpacing: "0.015em",
+                  color: email.includes("@") ? "#0A0A0A" : "rgba(255,255,255,0.22)",
+                  cursor: email.includes("@") ? "pointer" : "not-allowed",
+                  boxShadow: email.includes("@")
+                    ? "0 2px 24px rgba(255,255,255,0.08), 0 1px 0 rgba(255,255,255,0.08) inset"
+                    : "none",
+                  transition: "background 0.28s ease, box-shadow 0.28s ease, color 0.22s ease",
+                }}
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={loading ? "l" : "i"}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0, transition: { duration: 0.22, ease: E } }}
+                    exit={{ opacity: 0, y: -5, transition: { duration: 0.14, ease: EX } }}
+                    style={{ display: "block" }}
+                  >
+                    {loading ? "Sending…" : "Send Code →"}
+                  </motion.span>
+                </AnimatePresence>
+              </motion.button>
+            </motion.div>
+
+            {/* New user link */}
+            <motion.div variants={line} style={{ textAlign: "center", marginTop: 28 }}>
+              <span style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.28)" }}>
+                New here?{" "}
+              </span>
+              <Link
+                href="/welcome"
+                style={{
+                  fontSize: "0.75rem", fontWeight: 600,
+                  color: "rgba(201,168,76,0.72)",
+                  textDecoration: "none",
+                  letterSpacing: "0.01em",
+                }}
+              >
+                Join ELVN →
+              </Link>
+            </motion.div>
+
+            <motion.p variants={line} style={{
+              textAlign: "center",
+              fontSize: "0.625rem", fontWeight: 400,
+              color: "rgba(255,255,255,0.22)",
+              marginTop: 36, letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              lineHeight: 1.8,
+            }}>
+              Private network · 2,438 members
+            </motion.p>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="otp"
+            variants={screen}
+            initial="initial"
+            animate="animate"
+            exit="exit"
             style={{
-              fontSize: "0.75rem", fontWeight: 600,
-              color: "rgba(201,168,76,0.72)",
-              textDecoration: "none",
-              letterSpacing: "0.01em",
+              position: "relative", zIndex: 10,
+              width: "100%", maxWidth: 380,
+              padding: `0 ${space.screenX}px`,
+              display: "flex", flexDirection: "column",
             }}
           >
-            Join ELVN →
-          </Link>
-        </motion.div>
+            {/* Wordmark */}
+            <motion.div variants={line} style={{ marginBottom: 44, textAlign: "center" }}>
+              <span style={{
+                fontSize: "1.125rem", fontWeight: 700,
+                letterSpacing: "0.38em", paddingLeft: "0.38em",
+                textTransform: "uppercase",
+                color: "rgba(226,190,116,0.88)", display: "block", marginBottom: 10,
+              }}>ELVN</span>
+              <div style={{ fontSize: "1.5rem", marginTop: 4 }}>📬</div>
+            </motion.div>
 
-        {/* Footer */}
-        <motion.p variants={line} style={{
-          textAlign: "center",
-          fontSize: "0.625rem", fontWeight: 400,
-          color: "rgba(255,255,255,0.22)",
-          marginTop: 36, letterSpacing: "0.06em",
-          textTransform: "uppercase",
-          lineHeight: 1.8,
-        }}>
-          Private network · 2,438 members
-        </motion.p>
-      </motion.div>
+            <motion.div variants={line}>
+              <h2 style={{
+                fontSize: "1.375rem", fontWeight: 800, letterSpacing: "-0.03em",
+                color: "#fff", margin: "0 0 8px",
+              }}>Check your email</h2>
+              <p style={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.42)", margin: "0 0 4px", lineHeight: 1.55 }}>
+                We sent a 6-digit code to
+              </p>
+              <p style={{ fontSize: "0.875rem", fontWeight: 600, color: "rgba(226,190,116,0.88)", margin: "0 0 32px" }}>
+                {email}
+              </p>
+            </motion.div>
+
+            {/* OTP input */}
+            <motion.div variants={line} style={{ marginBottom: 8 }}>
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="000000"
+                maxLength={6}
+                value={otpCode}
+                onChange={e => { setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(""); }}
+                onKeyDown={e => e.key === "Enter" && handleVerify()}
+                autoFocus
+                style={{
+                  ...INPUT,
+                  fontSize: "2rem", fontWeight: 700,
+                  letterSpacing: "0.22em", textAlign: "center",
+                  paddingBottom: 16,
+                }}
+              />
+            </motion.div>
+
+            {/* Error */}
+            <AnimatePresence>
+              {error && (
+                <motion.p
+                  key="err"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: E } }}
+                  exit={{ opacity: 0, y: -4, transition: { duration: 0.16, ease: EX } }}
+                  style={{
+                    fontSize: "0.75rem", color: "rgba(255,80,80,0.80)",
+                    margin: "12px 0 0", fontWeight: 400, lineHeight: 1.5,
+                  }}
+                >{error}</motion.p>
+              )}
+            </AnimatePresence>
+
+            {/* Verify CTA */}
+            <motion.div variants={line} style={{ marginTop: 28 }}>
+              <motion.button
+                onClick={handleVerify}
+                disabled={otpCode.length < 6 || loading}
+                whileTap={otpCode.length === 6 && !loading ? { scale: 0.968, y: 1 } : {}}
+                transition={{ type: "spring", stiffness: 500, damping: 32 }}
+                style={{
+                  width: "100%", padding: "20px 24px",
+                  borderRadius: "14px", border: "none",
+                  background: otpCode.length === 6
+                    ? color.gold.gradient
+                    : "rgba(255,255,255,0.04)",
+                  fontSize: "0.9375rem", fontWeight: 700, letterSpacing: "0.015em",
+                  color: otpCode.length === 6 ? "#000" : "rgba(255,255,255,0.22)",
+                  cursor: otpCode.length === 6 ? "pointer" : "not-allowed",
+                  boxShadow: otpCode.length === 6 ? shadow.goldCTA : "none",
+                  transition: "background 0.28s ease, box-shadow 0.28s ease, color 0.22s ease",
+                }}
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={loading ? "l" : "i"}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0, transition: { duration: 0.22, ease: E } }}
+                    exit={{ opacity: 0, y: -5, transition: { duration: 0.14, ease: EX } }}
+                    style={{ display: "block" }}
+                  >
+                    {loading ? "Verifying…" : "Sign In →"}
+                  </motion.span>
+                </AnimatePresence>
+              </motion.button>
+            </motion.div>
+
+            {/* Resend + back */}
+            <motion.div variants={line} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24 }}>
+              <button
+                onClick={() => { setOtpSent(false); setOtpCode(""); setError(""); }}
+                style={{ background: "none", border: "none", fontSize: "0.8125rem", color: "rgba(255,255,255,0.28)", cursor: "pointer", padding: 0 }}
+              >
+                ← Change email
+              </button>
+              <button
+                onClick={async () => { setError(""); await sendOtp(email.trim().toLowerCase()); }}
+                style={{ background: "none", border: "none", fontSize: "0.8125rem", color: "rgba(201,168,76,0.60)", cursor: "pointer", padding: 0, fontWeight: 600 }}
+              >
+                Resend code
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
