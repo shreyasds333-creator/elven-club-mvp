@@ -132,6 +132,16 @@ const REWARDS: Reward[] = [
   },
 ];
 
+// ─── Coin purchase packages ───────────────────────────────────────────────────
+const COIN_PKGS = [
+  { id: 1, coins: 100,  price: 10,  label: "Starter",  badge: null,       accent: "#6098D8" },
+  { id: 2, coins: 500,  price: 45,  label: "Popular",  badge: "BEST VALUE", accent: "#4DC87A" },
+  { id: 3, coins: 1000, price: 80,  label: "Pro",      badge: "20% OFF",  accent: "#E2BE74" },
+  { id: 4, coins: 5000, price: 350, label: "Elite",    badge: "30% OFF",  accent: "#8B8BDE" },
+] as const;
+
+const UPI_ID = "elvnclub@ybl"; // ← replace with your actual UPI ID
+
 function buildCoinGroups(txns: Transaction[]): CoinGroup[] {
   if (!txns.length) return [];
   const t = todayStr();
@@ -167,6 +177,10 @@ export default function WalletPage() {
 
   const [vaultExpanded, setVaultExpanded] = useState(false);
   const [activeReward,  setActiveReward]  = useState<Reward | null>(null);
+  const [buySheet,      setBuySheet]      = useState(false);
+  const [buyPkg,        setBuyPkg]        = useState<(typeof COIN_PKGS)[number] | null>(null);
+  const [payState,      setPayState]      = useState<"idle" | "waiting" | "credited">("idle");
+  const { addCoins } = useAppStore();
 
   const rewardsRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<HTMLDivElement>(null);
@@ -175,14 +189,20 @@ export default function WalletPage() {
 
   const ACTIONS = [
     {
+      id: "buy",     label: "Buy Coins",  sub: "UPI · instant",
+      clr: "#4DC87A", bg: "rgba(77,200,122,0.08)", border: "rgba(77,200,122,0.20)",
+      Icon: TrendingUp,
+      handler: () => setBuySheet(true),
+    },
+    {
       id: "redeem",  label: "Redeem",     sub: `${fmtCoins(COINS)} available`,
       clr: color.gold.base, bg: "rgba(201,168,76,0.08)", border: "rgba(201,168,76,0.20)",
       Icon: Gift,
       handler: () => rewardsRef.current?.scrollIntoView({ behavior: "smooth" }),
     },
     {
-      id: "earn",    label: "Earn More",  sub: "Active challenges",
-      clr: "#4DC87A", bg: "rgba(77,200,122,0.08)", border: "rgba(77,200,122,0.20)",
+      id: "earn",    label: "Earn More",  sub: "Daily proofs",
+      clr: "#8B8BDE", bg: "rgba(139,139,222,0.08)", border: "rgba(139,139,222,0.20)",
       Icon: Zap,
       handler: () => router.push("/challenges"),
     },
@@ -193,6 +213,39 @@ export default function WalletPage() {
       handler: () => historyRef.current?.scrollIntoView({ behavior: "smooth" }),
     },
   ];
+
+  function handleBuy(pkg: (typeof COIN_PKGS)[number]) {
+    setBuyPkg(pkg);
+    setPayState("waiting");
+    const note = encodeURIComponent(`ELVN ${pkg.coins} Coins`);
+    const upiLink = `upi://pay?pa=${UPI_ID}&pn=ELVN+Club&am=${pkg.price}&tn=${note}&cu=INR`;
+    window.location.href = upiLink;
+  }
+
+  async function handlePaidConfirm() {
+    if (!buyPkg) return;
+    // Optimistic local update
+    addCoins(buyPkg.coins, `Bought ${buyPkg.coins} coins via UPI`, "Bonus", "💰");
+    setPayState("credited");
+
+    // Persist to Supabase in background
+    try {
+      const { data: { session } } = await (await import("@/lib/supabaseClient")).supabase.auth.getSession();
+      if (session?.user?.id) {
+        fetch("/api/payment/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: session.user.id, coins: buyPkg.coins }),
+        }).catch(() => {});
+      }
+    } catch { /* fire and forget */ }
+
+    setTimeout(() => {
+      setPayState("idle");
+      setBuyPkg(null);
+      setBuySheet(false);
+    }, 2200);
+  }
 
   return (
     <>
@@ -562,6 +615,84 @@ export default function WalletPage() {
               <div style={{ width:32, height:3, borderRadius:2, background:"rgba(255,255,255,0.12)" }} />
             </div>
             <RewardDetailContent reward={activeReward} userCoins={COINS} onClose={() => setActiveReward(null)} />
+          </div>
+        </div>
+      )}
+
+      {/* ── Buy Coins Sheet ──────────────────────────────────────────────────── */}
+      {buySheet && (
+        <div
+          onClick={() => { if (payState === "idle") { setBuySheet(false); } }}
+          style={{ position:"fixed", inset:0, zIndex:80, background:"rgba(0,0,0,0.72)", backdropFilter:"blur(8px)", display:"flex", alignItems:"flex-end", justifyContent:"center" }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ width:"100%", maxWidth:480, background:"#0A0A0E", borderRadius:"22px 22px 0 0", borderTop:"1px solid rgba(255,255,255,0.10)", padding:"22px 22px 52px", animation:"modalSlideUp 0.32s cubic-bezier(.175,.885,.32,1.275) both" }}>
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:18 }}>
+              <div style={{ width:32, height:3, borderRadius:2, background:"rgba(255,255,255,0.12)" }} />
+            </div>
+
+            {payState === "credited" ? (
+              <div style={{ textAlign:"center", padding:"32px 0" }}>
+                <div style={{ fontSize:"3rem", marginBottom:16 }}>✅</div>
+                <div style={{ fontSize:"1.25rem", fontWeight:800, color:"#4DC87A", letterSpacing:"-0.03em", marginBottom:8 }}>Coins Added!</div>
+                <div style={{ fontSize:"0.875rem", color:"rgba(255,255,255,0.48)" }}>⟡ {buyPkg?.coins.toLocaleString("en-IN")} coins credited to your vault</div>
+              </div>
+            ) : payState === "waiting" ? (
+              <div style={{ textAlign:"center", padding:"16px 0 8px" }}>
+                <div style={{ fontSize:"2.5rem", marginBottom:14 }}>📲</div>
+                <div style={{ fontSize:"1.125rem", fontWeight:800, color:"#fff", letterSpacing:"-0.03em", marginBottom:8 }}>Complete payment in UPI app</div>
+                <div style={{ fontSize:"0.8125rem", color:"rgba(255,255,255,0.44)", marginBottom:8, lineHeight:1.55 }}>
+                  Pay ₹{buyPkg?.price} via PhonePe / GPay / any UPI app.<br />Come back here once done.
+                </div>
+                <div style={{ fontSize:"0.75rem", color:"rgba(201,168,76,0.70)", marginBottom:28, fontWeight:600 }}>
+                  UPI: {UPI_ID}
+                </div>
+                <button
+                  onClick={handlePaidConfirm}
+                  style={{ width:"100%", padding:"18px", borderRadius:14, border:"none", background:"linear-gradient(135deg,#E2BE74,#C9A84C)", fontSize:"0.9375rem", fontWeight:800, color:"#000", cursor:"pointer", boxShadow:"0 4px 24px rgba(201,168,76,0.36)", marginBottom:12 }}
+                >
+                  ✓ I&apos;ve Paid — Add Coins
+                </button>
+                <button onClick={() => { setPayState("idle"); setBuyPkg(null); }} style={{ background:"none", border:"none", color:"rgba(255,255,255,0.28)", fontSize:"0.8125rem", cursor:"pointer" }}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ marginBottom:22 }}>
+                  <div style={{ fontSize:"1.125rem", fontWeight:800, color:"#fff", letterSpacing:"-0.03em", marginBottom:4 }}>Buy Coins</div>
+                  <div style={{ fontSize:"0.8125rem", color:"rgba(255,255,255,0.38)" }}>Pay via PhonePe, GPay, or any UPI app</div>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:10, marginBottom:20 }}>
+                  {COIN_PKGS.map(pkg => (
+                    <button
+                      key={pkg.id}
+                      onClick={() => handleBuy(pkg)}
+                      style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 18px", borderRadius:14, background:`rgba(${rgb(pkg.accent)},0.07)`, border:`1px solid rgba(${rgb(pkg.accent)},0.22)`, cursor:"pointer", position:"relative", overflow:"hidden" }}
+                    >
+                      <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                        <div style={{ width:44, height:44, borderRadius:12, background:`rgba(${rgb(pkg.accent)},0.14)`, border:`1px solid rgba(${rgb(pkg.accent)},0.28)`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                          <span style={{ fontSize:"1.25rem", fontWeight:900, color:pkg.accent, letterSpacing:"-0.05em" }}>⟡</span>
+                        </div>
+                        <div style={{ textAlign:"left" }}>
+                          <div style={{ fontSize:"1rem", fontWeight:800, color:"#fff", letterSpacing:"-0.03em", lineHeight:1.1 }}>{pkg.coins.toLocaleString("en-IN")} coins</div>
+                          <div style={{ fontSize:"0.6875rem", color:"rgba(255,255,255,0.38)", marginTop:2 }}>{pkg.label}</div>
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+                        {pkg.badge && (
+                          <span style={{ fontSize:"0.4375rem", fontWeight:700, letterSpacing:"0.10em", color:pkg.accent, background:`rgba(${rgb(pkg.accent)},0.12)`, border:`1px solid rgba(${rgb(pkg.accent)},0.28)`, padding:"2px 7px", borderRadius:99 }}>{pkg.badge}</span>
+                        )}
+                        <span style={{ fontSize:"1.0625rem", fontWeight:800, color:pkg.accent, letterSpacing:"-0.03em" }}>₹{pkg.price}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                  <span style={{ fontSize:"1rem" }}>🔒</span>
+                  <span style={{ fontSize:"0.6875rem", color:"rgba(255,255,255,0.24)" }}>Secure UPI payment · Coins credited instantly</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

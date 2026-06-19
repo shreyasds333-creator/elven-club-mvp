@@ -55,7 +55,7 @@ interface AppStore {
   createdChallenges: Challenge[];
   claimedChallenges: Set<number>;
   joinChallenge:    (id: number, entry: number) => void;
-  sendProof:        (id: number) => void;
+  sendProof:        (id: number, imageUrl?: string) => void;
   activateShield:   (id: number) => void;
   createChallenge:  (config: CreateChallengeConfig) => Challenge;
   addCoins:         (amount: number, label: string, category: Transaction["category"], emoji?: string) => void;
@@ -254,7 +254,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  function sendProof(id: number) {
+  function sendProof(id: number, imageUrl?: string) {
     const t = todayStr();
     const y = yesterdayStr();
 
@@ -303,6 +303,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user_id: uid, challenge_id: id,
       challenge_title: ch?.title ?? "Challenge",
       streak_at_time: newStreak,
+      ...(imageUrl ? { image_url: imageUrl } : {}),
     }).then(() => {});
 
     supabase.from("transactions").insert({

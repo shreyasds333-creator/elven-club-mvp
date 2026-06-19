@@ -151,7 +151,7 @@ export default function ChallengesPage() {
           recoveryActive={store.recovering.has(activeChallenge.id)}
           shieldActive={store.shielded.has(activeChallenge.id)}
           shieldsAvailable={store.shields}
-          onProof={() => store.sendProof(activeChallenge.id)}
+          onProof={() => router.push(`/camera?id=${activeChallenge.id}`)}
           onShield={() => activateShield(activeChallenge.id)}
         />
       )}
@@ -169,7 +169,7 @@ export default function ChallengesPage() {
           walletBalance={store.coins}
           insufficient={insufficientId === FEATURED.id}
           onJoin={() => handleJoin(FEATURED.id)}
-          onProof={() => store.sendProof(FEATURED.id)}
+          onProof={() => router.push(`/camera?id=${FEATURED.id}`)}
           onShield={() => activateShield(FEATURED.id)}
         />
       )}
@@ -204,7 +204,7 @@ export default function ChallengesPage() {
                 recoveryActive={store.recovering.has(c.id)} shieldActive={store.shielded.has(c.id)}
                 shieldsAvailable={store.shields} walletBalance={store.coins}
                 insufficient={insufficientId === c.id}
-                onJoin={() => handleJoin(c.id)} onProof={() => store.sendProof(c.id)} onShield={() => activateShield(c.id)}
+                onJoin={() => handleJoin(c.id)} onProof={() => router.push(`/camera?id=${c.id}`)} onShield={() => activateShield(c.id)}
               />
             ))}
           </div>
@@ -224,7 +224,7 @@ export default function ChallengesPage() {
                 recoveryActive={store.recovering.has(c.id)} shieldActive={store.shielded.has(c.id)}
                 shieldsAvailable={store.shields} walletBalance={store.coins}
                 insufficient={insufficientId === c.id}
-                onJoin={() => handleJoin(c.id)} onProof={() => store.sendProof(c.id)} onShield={() => activateShield(c.id)}
+                onJoin={() => handleJoin(c.id)} onProof={() => router.push(`/camera?id=${c.id}`)} onShield={() => activateShield(c.id)}
               />
             ))}
           </div>

@@ -2,10 +2,12 @@
 
 import { useRef, useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Check, Zap, X, RotateCcw } from "lucide-react";
 import { color, radius, motion } from "@/lib/tokens";
 import { ALL_CHALLENGES } from "@/lib/challengeData";
 import { useAppStore } from "@/lib/appStore";
+import { supabase } from "@/lib/supabaseClient";
 
 // ─── Data (module-level — never re-created) ───────────────────────────────────
 const MODES = [
@@ -54,15 +56,18 @@ function computeTimeLeft() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CameraPage() {
+  const searchParams = useSearchParams();
+  const paramId      = Number(searchParams.get("id") ?? 1) || 1;
+
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // Cleanup refs for snap timeouts — prevents setState after unmount
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [stage,       setStage]       = useState<Stage>("viewfinder");
   const [mode,        setMode]        = useState("workout");
-  const [challengeId, setChallengeId] = useState(1);
+  const [challengeId, setChallengeId] = useState(paramId);
+  const [sending,     setSending]     = useState(false);
   const [flashOn,     setFlashOn]     = useState(false);
   const [flash,       setFlash]       = useState(false);
   const [facingMode,  setFacingMode]  = useState<"environment" | "user">("environment");
@@ -207,10 +212,39 @@ export default function CameraPage() {
     setSnapUrl(null);
   }, []);
 
-  const handleSendProof = useCallback(() => {
-    storeProof(activeChallenge?.id ?? challengeId);
+  const handleSendProof = useCallback(async () => {
+    if (sending) return;
+    setSending(true);
+
+    let imageUrl: string | undefined;
+
+    // Upload photo to Supabase Storage if we have a snap
+    if (snapUrl && canvasRef.current) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const uid = session?.user?.id;
+        if (uid) {
+          // Convert data URL to Blob
+          const res  = await fetch(snapUrl);
+          const blob = await res.blob();
+          const path = `${uid}/${Date.now()}.jpg`;
+          const { error } = await supabase.storage
+            .from("proof-images")
+            .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+          if (!error) {
+            const { data } = supabase.storage.from("proof-images").getPublicUrl(path);
+            imageUrl = data.publicUrl;
+          }
+        }
+      } catch {
+        // Upload failed — still submit proof without image
+      }
+    }
+
+    storeProof(activeChallenge?.id ?? challengeId, imageUrl);
+    setSending(false);
     setTimeout(() => setStage("posted"), 280);
-  }, [storeProof, activeChallenge, challengeId]);
+  }, [sending, snapUrl, storeProof, activeChallenge, challengeId]);
 
   // ── Early returns (all hooks are above this line) ────────────────────────────
 
@@ -453,9 +487,10 @@ export default function CameraPage() {
             </button>
             <button
               onClick={handleSendProof}
-              style={{ flex: 2, padding: "13px 0", borderRadius: radius.full, background: color.gold.gradient, border: "none", color: "#000", fontSize: "0.875rem", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", cursor: "pointer", boxShadow: "0 4px 24px rgba(201,168,76,0.40)" }}
+              disabled={sending}
+              style={{ flex: 2, padding: "13px 0", borderRadius: radius.full, background: sending ? "rgba(255,255,255,0.06)" : color.gold.gradient, border: "none", color: sending ? "rgba(255,255,255,0.38)" : "#000", fontSize: "0.875rem", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", cursor: sending ? "not-allowed" : "pointer", boxShadow: sending ? "none" : "0 4px 24px rgba(201,168,76,0.40)", transition: "background 0.2s ease, color 0.2s ease" }}
             >
-              Send Proof 🔥
+              {sending ? "Uploading…" : "Send Proof 🔥"}
             </button>
           </div>
         </div>
