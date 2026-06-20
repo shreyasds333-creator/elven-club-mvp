@@ -53,11 +53,13 @@ function relTime(iso: string): string {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ChallengeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const c = ALL_CHALLENGES.find(ch => ch.id === parseInt(id));
-
   const router = useRouter();
   const store = useAppStore();
   const { user: authUser } = useAuth();
+
+  const numId = parseInt(id);
+  const c = ALL_CHALLENGES.find(ch => ch.id === numId) ?? store.createdChallenges.find(ch => ch.id === numId);
+  const isUserCreated = store.createdChallenges.some(ch => ch.id === numId);
   const walletBalance  = store.coins;
   const joined         = store.joined.has(c?.id ?? -1);
   const proofSent      = store.proofSent.has(c?.id ?? -1);
@@ -78,7 +80,6 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
 
   const [realFeed,         setRealFeed]         = useState<{ initials: string; bg: string; name: string; action: string; time: string }[]>([]);
   const [realParticipants, setRealParticipants] = useState<number | null>(null);
-  const [creatorId,        setCreatorId]        = useState<string | null>(null);
   const [showDelete,       setShowDelete]       = useState(false);
   const [deleting,         setDeleting]         = useState(false);
 
@@ -127,12 +128,6 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
       .eq("challenge_id", challengeId)
       .then(({ count }) => { if (count !== null) setRealParticipants(count); });
 
-    supabase
-      .from("challenges")
-      .select("creator_id")
-      .eq("id", challengeId)
-      .single()
-      .then(({ data }) => { if (data?.creator_id) setCreatorId(data.creator_id); });
   }, [id]);
 
   if (!c) return (
@@ -177,7 +172,8 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
   async function handleDelete() {
     if (!c) return;
     setDeleting(true);
-    await supabase.from("challenges").delete().eq("id", c.id);
+    await supabase.from("created_challenges").delete().eq("id", c.id);
+    await supabase.from("challenge_memberships").delete().eq("challenge_id", c.id);
     router.replace("/challenges");
   }
 
@@ -611,7 +607,7 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
       </div>
 
       {/* ── Delete (creator only, 0 participants) ───────────────────────────── */}
-      {authUser?.id && authUser.id === creatorId && (realParticipants ?? 1) === 0 && (
+      {isUserCreated && (realParticipants ?? 1) === 0 && (
         <div style={{ padding: `0 ${space.screenX}px`, marginTop: 24 }}>
           <button
             onClick={() => setShowDelete(true)}
