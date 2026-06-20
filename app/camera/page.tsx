@@ -108,10 +108,13 @@ export default function CameraPage() {
         .then(s => {
           if (cancelled) { s.getTracks().forEach(t => t.stop()); return; }
           stream = s;
+          console.log("[camera] stream obtained — active:", s.active, "tracks:", s.getVideoTracks().map(t => `${t.label} (${t.readyState})`));
           if (videoRef.current) {
             videoRef.current.srcObject = s;
-            videoRef.current.play().catch(() => {});
+            videoRef.current.play().catch(e => console.log("[camera] video.play() failed:", e));
             setCameraReady(true);
+          } else {
+            console.log("[camera] videoRef.current is null when stream arrived");
           }
         })
         .catch((err: unknown) => {
@@ -523,14 +526,19 @@ export default function CameraPage() {
       {/* Hidden capture canvas */}
       <canvas ref={canvasRef} style={{ display: "none" }} />
 
-      {/* ── Camera / ambient background ─────────────────────────────────── */}
-      {cameraReady ? (
-        <video
-          ref={videoRef}
-          autoPlay playsInline muted
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-        />
-      ) : (
+      {/* ── Camera feed — always in DOM so ref exists when stream arrives ── */}
+      <video
+        ref={videoRef}
+        autoPlay playsInline muted
+        style={{
+          position: "absolute", inset: 0, width: "100%", height: "100%",
+          objectFit: "cover",
+          display: cameraReady ? "block" : "none",
+        }}
+      />
+
+      {/* ── Ambient background — shown until camera is ready ─────────────── */}
+      {!cameraReady && (
         <div style={{
           position: "absolute", inset: 0,
           background: "radial-gradient(ellipse 85% 75% at 50% 40%, rgba(18,24,18,1) 0%, rgba(8,10,8,1) 50%, #030305 100%)",
@@ -575,7 +583,7 @@ export default function CameraPage() {
           {/* Depth gradient */}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.36) 100%)" }} />
           {cameraError && (
-            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, paddingBottom: 80, padding: "0 32px 80px" }}>
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "0 32px 80px" }}>
               <div style={{ width: 60, height: 60, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ fontSize: 26, opacity: 0.18 }}>📷</span>
               </div>

@@ -49,10 +49,13 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
       .then(stream => {
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
+        console.log("[ProofCamera] stream obtained — active:", stream.active, "tracks:", stream.getVideoTracks().map(t => `${t.label} (${t.readyState})`));
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(() => {});
+          videoRef.current.play().catch(e => console.log("[ProofCamera] video.play() failed:", e));
           setCameraReady(true);
+        } else {
+          console.log("[ProofCamera] videoRef.current is null when stream arrived");
         }
       })
       .catch((err: unknown) => {
@@ -247,9 +250,18 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
     <Overlay onClose={onClose}>
       <canvas ref={canvasRef} style={{ display: "none" }} />
 
-      {cameraReady ? (
-        <video ref={videoRef} autoPlay playsInline muted style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
-      ) : (
+      {/* Always in DOM so ref exists when the stream arrives */}
+      <video
+        ref={videoRef}
+        autoPlay playsInline muted
+        style={{
+          position: "absolute", inset: 0, width: "100%", height: "100%",
+          objectFit: "cover",
+          display: cameraReady ? "block" : "none",
+        }}
+      />
+
+      {!cameraReady && (
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 70% at 50% 40%, rgba(18,24,18,1) 0%, #030305 100%)" }}>
           {cameraError && (
             <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "0 32px" }}>
