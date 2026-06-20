@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 
 export default function CameraFAB() {
   const pathname = usePathname();
-  if (pathname === "/welcome" || pathname === "/auth") return null;
+  if (pathname === "/welcome" || pathname === "/auth" || pathname === "/camera") return null;
 
   return (
     <Link

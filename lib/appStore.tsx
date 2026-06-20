@@ -119,7 +119,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const uidRef = useRef<string | null>(null);
 
   // ── State ──────────────────────────────────────────────────────────────────
-  const [coins,             setCoins]             = useState(25000);
+  const [coins,             setCoins]             = useState(100);
   const [streak,            setStreak]            = useState(0);
   const [longestStreak,     setLongestStreak]     = useState(0);
   const [lastProofDate,     setLastProofDate]     = useState<string | null>(null);
@@ -132,7 +132,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [proofLog,          setProofLog]          = useState<ProofEntry[]>([]);
   const [createdChallenges, setCreatedChallenges] = useState<Challenge[]>([]);
   const [transactions,      setTransactions]      = useState<Transaction[]>([{
-    id: "starter", label: "Welcome bonus", coins: 25000,
+    id: "starter", label: "Welcome bonus", coins: 100,
     isDebit: false, emoji: "🎁", category: "Bonus", timestamp: Date.now(),
   }]);
 
@@ -170,7 +170,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const st = ok<Record<string, unknown>>(appStateRes);
       if (st) {
         const lastDate = st.last_proof_date as string | null;
-        setCoins((st.coins as number) ?? 25000);
+        setCoins((st.coins as number) ?? 100);
         setStreak(computeStreak((st.streak as number) ?? 0, lastDate));
         setLongestStreak((st.longest_streak as number) ?? 0);
         setLastProofDate(lastDate);
@@ -178,10 +178,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       } else {
         // First sign-in — seed state row and welcome transaction
         await supabase.from("user_app_state").insert({
-          user_id: uid, coins: 25000, streak: 0, longest_streak: 0, shields: 2,
+          user_id: uid, coins: 100, streak: 0, longest_streak: 0, shields: 2,
         });
         await supabase.from("transactions").insert({
-          user_id: uid, label: "Welcome bonus", coins: 25000,
+          user_id: uid, label: "Welcome bonus", coins: 100,
           is_debit: false, emoji: "🎁", category: "Bonus",
         });
       }

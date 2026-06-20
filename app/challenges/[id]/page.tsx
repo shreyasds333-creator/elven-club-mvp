@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { color, radius, typo, space, motion, tierStyle } from "@/lib/tokens";
 import { ALL_CHALLENGES, fmt, fmtCoins, rgb, PROOF_ICON, timeToMidnight, timeToMidnightRaw, type Challenge } from "@/lib/challengeData";
 import { useAppStore } from "@/lib/appStore";
@@ -54,6 +55,7 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
   const { id } = use(params);
   const c = ALL_CHALLENGES.find(ch => ch.id === parseInt(id));
 
+  const router = useRouter();
   const store = useAppStore();
   const { user: authUser } = useAuth();
   const walletBalance  = store.coins;
@@ -76,6 +78,9 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
 
   const [realFeed,         setRealFeed]         = useState<{ initials: string; bg: string; name: string; action: string; time: string }[]>([]);
   const [realParticipants, setRealParticipants] = useState<number | null>(null);
+  const [creatorId,        setCreatorId]        = useState<string | null>(null);
+  const [showDelete,       setShowDelete]       = useState(false);
+  const [deleting,         setDeleting]         = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -121,6 +126,13 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
       .select("id", { count: "exact", head: true })
       .eq("challenge_id", challengeId)
       .then(({ count }) => { if (count !== null) setRealParticipants(count); });
+
+    supabase
+      .from("challenges")
+      .select("creator_id")
+      .eq("id", challengeId)
+      .single()
+      .then(({ data }) => { if (data?.creator_id) setCreatorId(data.creator_id); });
   }, [id]);
 
   if (!c) return (
@@ -160,6 +172,13 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
   function handleClaimPrize() {
     store.claimPrize(c!.id, prizeAmount, c!.title);
     setShowClaim(false);
+  }
+
+  async function handleDelete() {
+    if (!c) return;
+    setDeleting(true);
+    await supabase.from("challenges").delete().eq("id", c.id);
+    router.replace("/challenges");
   }
 
   const accentClr = shieldActive ? "#6098D8" : c.accentColor;
@@ -591,6 +610,18 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
         )}
       </div>
 
+      {/* ── Delete (creator only, 0 participants) ───────────────────────────── */}
+      {authUser?.id && authUser.id === creatorId && (realParticipants ?? 1) === 0 && (
+        <div style={{ padding: `0 ${space.screenX}px`, marginTop: 24 }}>
+          <button
+            onClick={() => setShowDelete(true)}
+            style={{ width: "100%", padding: "13px", borderRadius: radius.lg, background: "rgba(255,60,60,0.06)", border: "1px solid rgba(255,60,60,0.18)", cursor: "pointer", fontSize: "0.875rem", fontWeight: 700, color: "rgba(255,80,80,0.70)", letterSpacing: "0.01em" }}
+          >
+            Delete Challenge
+          </button>
+        </div>
+      )}
+
       {/* ── Spacer ────────────────────────────────────────────────────────────── */}
       <div style={{ height: 20 }} />
 
@@ -674,6 +705,24 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
       {showProof  && <ProofModal  c={c} dayNum={dayNum} proofSent={proofSent} onSubmit={handleProofSubmit} onClose={() => setShowProof(false)} />}
       {showShield && <ShieldModal globalShields={globalShields} onActivate={handleShieldActivate} onClose={() => setShowShield(false)} />}
       {showClaim  && <ClaimModal  c={c} prizeAmount={prizeAmount} onClaim={handleClaimPrize} onClose={() => setShowClaim(false)} />}
+      {showDelete && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "flex-end" }} onClick={() => setShowDelete(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", background: "#0A0A0D", border: "1px solid rgba(255,255,255,0.08)", borderBottom: "none", borderRadius: "20px 20px 0 0", padding: "24px 20px calc(env(safe-area-inset-bottom,0px) + 28px)" }}>
+            <p style={{ fontSize: "1rem", fontWeight: 800, color: "#fff", margin: "0 0 6px", letterSpacing: "-0.02em" }}>Delete this challenge?</p>
+            <p style={{ fontSize: "0.8125rem", color: "rgba(255,255,255,0.42)", margin: "0 0 24px", lineHeight: 1.55 }}>
+              This cannot be undone. The challenge will be permanently removed.
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setShowDelete(false)} style={{ flex: 1, padding: "14px", borderRadius: radius.lg, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.10)", color: "rgba(255,255,255,0.60)", fontSize: "0.875rem", fontWeight: 700, cursor: "pointer" }}>
+                Cancel
+              </button>
+              <button onClick={handleDelete} disabled={deleting} style={{ flex: 1, padding: "14px", borderRadius: radius.lg, background: deleting ? "rgba(255,60,60,0.10)" : "rgba(255,60,60,0.18)", border: "1px solid rgba(255,60,60,0.36)", color: deleting ? "rgba(255,80,80,0.40)" : "rgba(255,80,80,0.90)", fontSize: "0.875rem", fontWeight: 800, cursor: deleting ? "not-allowed" : "pointer" }}>
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes atmoPulse    { 0%,100%{opacity:0.70;transform:scale(1);} 50%{opacity:1;transform:scale(1.08);} }
