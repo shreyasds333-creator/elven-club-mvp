@@ -54,6 +54,8 @@ interface AppStore {
   shields:           number;
   createdChallenges: Challenge[];
   claimedChallenges: Set<number>;
+  actionError:       string | null;
+  clearActionError:  () => void;
   joinChallenge:    (id: number, entry: number) => void;
   sendProof:        (id: number, imageUrl?: string) => void;
   activateShield:   (id: number) => void;
@@ -135,8 +137,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     id: "starter", label: "Welcome bonus", coins: 100,
     isDebit: false, emoji: "🎁", category: "Bonus", timestamp: Date.now(),
   }]);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const provedToday = lastProofDate === todayStr();
+  function clearActionError() { setActionError(null); }
 
   // ── Load from Supabase on auth state change ─────────────────────────────────
   useEffect(() => {
@@ -235,48 +239,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  function joinChallenge(id: number, entry: number) {
-    const ch      = [...createdChallenges, ...ALL_CHALLENGES].find(c => c.id === id);
+  async function joinChallenge(id: number, entry: number) {
+    const ch       = [...createdChallenges, ...ALL_CHALLENGES].find(c => c.id === id);
     const newCoins = coins - entry;
+
+    // Optimistic update
     setCoins(newCoins);
     setJoined(s => new Set([...s, id]));
 
     const uid = uidRef.current;
     if (!uid) return;
 
-    supabase.from("challenge_memberships")
-      .upsert({ user_id: uid, challenge_id: id, entry_coins: entry })
-      .then(() => {});
+    const tx: Transaction | null = entry > 0 ? {
+      id: `join-${id}-${Date.now()}`,
+      label: `Joined ${ch?.title ?? "Challenge"}`,
+      coins: entry, isDebit: true, emoji: "⚡", category: "Entry",
+      timestamp: Date.now(),
+    } : null;
+    if (tx) setTransactions(prev => [tx, ...prev]);
 
-    supabase.from("user_app_state")
-      .update({ coins: newCoins, updated_at: new Date().toISOString() })
-      .eq("user_id", uid)
-      .then(() => {});
-
-    if (entry > 0) {
-      const tx: Transaction = {
-        id: `join-${id}-${Date.now()}`,
-        label: `Joined ${ch?.title ?? "Challenge"}`,
-        coins: entry, isDebit: true, emoji: "⚡", category: "Entry",
-        timestamp: Date.now(),
-      };
-      setTransactions(prev => [tx, ...prev]);
-      supabase.from("transactions").insert({
-        user_id: uid, label: tx.label, coins: entry,
-        is_debit: true, emoji: "⚡", category: "Entry",
-      }).then(() => {});
+    try {
+      const [memberRes, stateRes] = await Promise.all([
+        supabase.from("challenge_memberships").upsert({ user_id: uid, challenge_id: id, entry_coins: entry }),
+        supabase.from("user_app_state").update({ coins: newCoins, updated_at: new Date().toISOString() }).eq("user_id", uid),
+      ]);
+      if (memberRes.error) throw memberRes.error;
+      if (stateRes.error)  throw stateRes.error;
+      if (tx) {
+        const txRes = await supabase.from("transactions").insert({ user_id: uid, label: tx.label, coins: entry, is_debit: true, emoji: "⚡", category: "Entry" });
+        if (txRes.error) throw txRes.error;
+      }
+    } catch {
+      // Roll back
+      setCoins(coins);
+      setJoined(s => { const n = new Set(s); n.delete(id); return n; });
+      if (tx) setTransactions(prev => prev.filter(t => t.id !== tx.id));
+      setActionError("Failed to join challenge. Check your connection and try again.");
     }
   }
 
-  function sendProof(id: number, imageUrl?: string) {
+  async function sendProof(id: number, imageUrl?: string) {
     const t = todayStr();
     const y = yesterdayStr();
 
     if (proofSent.has(id)) return;
 
-    const allChalls      = [...createdChallenges, ...ALL_CHALLENGES];
-    const ch             = allChalls.find(c => c.id === id);
-    const alreadyToday   = lastProofDate === t;
+    const allChalls    = [...createdChallenges, ...ALL_CHALLENGES];
+    const ch           = allChalls.find(c => c.id === id);
+    const alreadyToday = lastProofDate === t;
 
     let newStreak: number;
     if (alreadyToday) {
@@ -289,7 +299,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const newLongest = Math.max(longestStreak, newStreak);
     const newCoins   = coins + 50;
 
-    const entry: ProofEntry = {
+    const logEntry: ProofEntry = {
       challengeId:    id,
       challengeTitle: ch?.title ?? "Challenge",
       timestamp:      Date.now(),
@@ -302,7 +312,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       timestamp: Date.now(),
     };
 
-    setProofLog(prev => [entry, ...prev.slice(0, 49)]);
+    // Optimistic update
+    const prevCoins       = coins;
+    const prevStreak      = streak;
+    const prevLongest     = longestStreak;
+    const prevLastProof   = lastProofDate;
+    const prevProofSent   = new Set(proofSent);
+    setProofLog(prev => [logEntry, ...prev.slice(0, 49)]);
     setProofSent(new Set([...proofSent, id]));
     setStreak(newStreak);
     setLongestStreak(newLongest);
@@ -313,38 +329,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const uid = uidRef.current;
     if (!uid) return;
 
-    supabase.from("proof_submissions").insert({
-      user_id: uid, challenge_id: id,
-      challenge_title: ch?.title ?? "Challenge",
-      streak_at_time: newStreak,
-      ...(imageUrl ? { image_url: imageUrl } : {}),
-    }).then(() => {});
-
-    supabase.from("transactions").insert({
-      user_id: uid, label: proofTx.label, coins: 50,
-      is_debit: false, emoji: "📸", category: "Proof",
-    }).then(() => {});
-
-    supabase.from("user_app_state").update({
-      coins:           newCoins,
-      streak:          newStreak,
-      longest_streak:  newLongest,
-      last_proof_date: t,
-      updated_at:      new Date().toISOString(),
-    }).eq("user_id", uid).then(() => {});
+    try {
+      const [subRes, txRes, stateRes] = await Promise.all([
+        supabase.from("proof_submissions").insert({
+          user_id: uid, challenge_id: id,
+          challenge_title: ch?.title ?? "Challenge",
+          streak_at_time: newStreak,
+          ...(imageUrl ? { image_url: imageUrl } : {}),
+        }),
+        supabase.from("transactions").insert({
+          user_id: uid, label: proofTx.label, coins: 50,
+          is_debit: false, emoji: "📸", category: "Proof",
+        }),
+        supabase.from("user_app_state").update({
+          coins: newCoins, streak: newStreak, longest_streak: newLongest,
+          last_proof_date: t, updated_at: new Date().toISOString(),
+        }).eq("user_id", uid),
+      ]);
+      if (subRes.error)   throw subRes.error;
+      if (txRes.error)    throw txRes.error;
+      if (stateRes.error) throw stateRes.error;
+    } catch {
+      // Roll back
+      setCoins(prevCoins);
+      setStreak(prevStreak);
+      setLongestStreak(prevLongest);
+      setLastProofDate(prevLastProof);
+      setProofSent(prevProofSent);
+      setProofLog(prev => prev.filter(e => e !== logEntry));
+      setTransactions(prev => prev.filter(t => t.id !== proofTx.id));
+      setActionError("Failed to submit proof. Check your connection and try again.");
+    }
   }
 
-  function claimPrize(id: number, amount: number, title: string) {
+  async function claimPrize(id: number, amount: number, title: string) {
     if (claimedChallenges.has(id)) return;
+
+    // Optimistic update
     setClaimedChallenges(prev => new Set([...prev, id]));
     addCoins(amount, `Won ${title}`, "Win", "🏆");
 
     const uid = uidRef.current;
     if (!uid) return;
 
-    supabase.from("claimed_challenges").insert({
-      user_id: uid, challenge_id: id, prize_coins: amount,
-    }).then(() => {});
+    try {
+      const res = await supabase.from("claimed_challenges").insert({ user_id: uid, challenge_id: id, prize_coins: amount });
+      if (res.error) throw res.error;
+    } catch {
+      // Roll back
+      setClaimedChallenges(prev => { const n = new Set(prev); n.delete(id); return n; });
+      setCoins(coins);
+      setTransactions(prev => prev.filter(t => t.label !== `Won ${title}`));
+      setActionError("Failed to claim prize. Check your connection and try again.");
+    }
   }
 
   function addCoins(amount: number, label: string, category: Transaction["category"], emoji = "💰") {
@@ -369,9 +406,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }).eq("user_id", uid).then(() => {});
   }
 
-  function activateShield(id: number) {
+  async function activateShield(id: number) {
     if (shields < 1 || shielded.has(id)) return;
     const newShields = shields - 1;
+
+    // Optimistic update
     setShields(newShields);
     setShielded(s => new Set([...s, id]));
     setRecovering(s => { const n = new Set(s); n.delete(id); return n; });
@@ -379,10 +418,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const uid = uidRef.current;
     if (!uid) return;
 
-    supabase.from("shielded_challenges").insert({ user_id: uid, challenge_id: id }).then(() => {});
-    supabase.from("user_app_state").update({
-      shields: newShields, updated_at: new Date().toISOString(),
-    }).eq("user_id", uid).then(() => {});
+    try {
+      const [shieldRes, stateRes] = await Promise.all([
+        supabase.from("shielded_challenges").insert({ user_id: uid, challenge_id: id }),
+        supabase.from("user_app_state").update({ shields: newShields, updated_at: new Date().toISOString() }).eq("user_id", uid),
+      ]);
+      if (shieldRes.error) throw shieldRes.error;
+      if (stateRes.error)  throw stateRes.error;
+    } catch {
+      // Roll back
+      setShields(shields);
+      setShielded(s => { const n = new Set(s); n.delete(id); return n; });
+      setActionError("Failed to activate shield. Check your connection and try again.");
+    }
   }
 
   function createChallenge(config: CreateChallengeConfig): Challenge {
@@ -450,6 +498,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       coins, streak, longestStreak, lastProofDate, provedToday,
       proofLog, transactions, joined, recovering, proofSent, shielded, shields,
       createdChallenges, claimedChallenges,
+      actionError, clearActionError,
       joinChallenge, sendProof, activateShield, createChallenge, addCoins, claimPrize,
     }}>
       {children}

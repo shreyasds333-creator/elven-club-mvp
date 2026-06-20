@@ -11,7 +11,7 @@ type Stage = "viewfinder" | "preview" | "submitting" | "done";
 interface Props {
   challengeId:    number;
   challengeTitle: string;
-  onSuccess:      () => void;
+  onSuccess:      (imageUrl?: string) => void;
   onClose:        () => void;
 }
 
@@ -70,12 +70,6 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
     };
   }, [stage, facingMode]);
 
-  // ── Auto-call onSuccess after done screen ──────────────────────────────────
-  useEffect(() => {
-    if (stage !== "done") return;
-    const t = setTimeout(onSuccess, 2600);
-    return () => clearTimeout(t);
-  }, [stage, onSuccess]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleSnap = useCallback(() => {
@@ -115,7 +109,7 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
       const blob = await (await fetch(snapUrl)).blob();
       const path = `${user.id}/${challengeId}/${Date.now()}.jpg`;
 
-      let photoUrl = "";
+      let photoUrl: string | undefined;
       const { error: uploadErr } = await supabase.storage
         .from("proof-photos")
         .upload(path, blob, { contentType: "image/jpeg", upsert: false });
@@ -125,17 +119,10 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
         photoUrl = data.publicUrl;
       }
 
-      const { error: insertErr } = await supabase.from("proof_submissions").insert({
-        user_id:         user.id,
-        challenge_id:    challengeId,
-        challenge_title: challengeTitle,
-        photo_url:       photoUrl || null,
-        streak_at_time:  0,
-      });
-
-      if (insertErr) throw new Error(insertErr.message);
-
       setStage("done");
+      // Let the caller (store.sendProof) handle the proof_submissions insert
+      // so we don't double-write the same row.
+      setTimeout(() => onSuccess(photoUrl), 2600);
     } catch {
       setSubmitError("Upload failed — please try again.");
       setStage("preview");

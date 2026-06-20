@@ -4,6 +4,7 @@ import CameraFAB from "./components/CameraFAB";
 import TopBar from "./components/TopBar";
 import SessionGate from "./components/SessionGate";
 import WalkthroughOverlay from "./components/WalkthroughOverlay";
+import ActionErrorToast from "./components/ActionErrorToast";
 import { AppProvider } from "@/lib/appStore";
 import { AuthProvider } from "@/lib/authStore";
 import type { Viewport } from "next";
@@ -47,6 +48,7 @@ export default function RootLayout({
               <CameraFAB />
               <BottomNav />
               <WalkthroughOverlay />
+              <ActionErrorToast />
             </SessionGate>
           </AppProvider>
         </AuthProvider>

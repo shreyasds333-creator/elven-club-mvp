@@ -229,10 +229,10 @@ export default function CameraPage() {
           const blob = await res.blob();
           const path = `${uid}/${Date.now()}.jpg`;
           const { error } = await supabase.storage
-            .from("proof-images")
+            .from("proof-photos")
             .upload(path, blob, { contentType: "image/jpeg", upsert: false });
           if (!error) {
-            const { data } = supabase.storage.from("proof-images").getPublicUrl(path);
+            const { data } = supabase.storage.from("proof-photos").getPublicUrl(path);
             imageUrl = data.publicUrl;
           }
         }

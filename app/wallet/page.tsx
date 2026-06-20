@@ -689,56 +689,8 @@ function RewardCard({ reward: r, userCoins, onTap }: { reward: Reward; userCoins
 
 // ─── Reward Detail Modal ──────────────────────────────────────────────────────
 function RewardDetailContent({ reward: r, userCoins, onClose }: { reward: Reward; userCoins: number; onClose: () => void }) {
-  const [redeemed, setRedeemed] = useState(false);
   const canAfford = userCoins >= r.coinsRequired;
   const needed    = r.coinsRequired - userCoins;
-
-  // ── Success screen ──────────────────────────────────────────────────────────
-  if (redeemed) {
-    return (
-      <div style={{ textAlign:"center", padding:"8px 0 16px" }}>
-        {/* Animated checkmark */}
-        <div style={{ width:72, height:72, borderRadius:"50%", background:"radial-gradient(circle, rgba(201,168,76,0.20) 0%, transparent 70%)", border:"2px solid rgba(201,168,76,0.45)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px", animation:"redeemPop 0.52s cubic-bezier(.175,.885,.32,1.275) both", boxShadow:"0 0 36px rgba(201,168,76,0.18)" }}>
-          <span style={{ fontSize:"2rem", lineHeight:1 }}>✓</span>
-        </div>
-
-        <h2 style={{ fontSize:"1.3125rem", fontWeight:900, letterSpacing:"-0.04em", color:"#fff", margin:"0 0 8px", lineHeight:1 }}>
-          Reward reserved.
-        </h2>
-        <p style={{ fontSize:"0.8125rem", color:"rgba(255,255,255,0.50)", margin:"0 0 24px", lineHeight:1.55 }}>
-          This drop unlocks officially soon.<br />You&apos;re among the first.
-        </p>
-
-        {/* Early access badge */}
-        <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:radius.full, background:"rgba(201,168,76,0.08)", border:"1px solid rgba(201,168,76,0.24)", marginBottom:24 }}>
-          <span style={{ fontSize:12 }}>🥇</span>
-          <span style={{ fontSize:"0.5625rem", fontWeight:700, letterSpacing:"0.09em", textTransform:"uppercase", color:r.accent }}>
-            Early member access
-          </span>
-        </div>
-
-        <p style={{ fontSize:"0.5rem", color:"rgba(255,255,255,0.22)", letterSpacing:"0.06em", textTransform:"uppercase", margin:"0 0 20px" }}>
-          {r.brand} · {r.offer}
-        </p>
-
-        <button
-          className="modal-opt"
-          onClick={onClose}
-          style={{ width:"100%", padding:"14px", borderRadius:radius.lg, background:"rgba(255,255,255,0.06)", border:`1px solid ${color.border.subtle}`, color:color.text.secondary, fontSize:"0.875rem", fontWeight:600, cursor:"pointer" }}
-        >
-          Done
-        </button>
-
-        <style>{`
-          @keyframes redeemPop {
-            0%   { opacity:0; transform:scale(0.60); }
-            65%  { opacity:1; transform:scale(1.10); }
-            100% { opacity:1; transform:scale(1.00); }
-          }
-        `}</style>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -799,23 +751,17 @@ function RewardDetailContent({ reward: r, userCoins, onClose }: { reward: Reward
         </div>
       )}
 
-      {/* CTA */}
-      {canAfford ? (
-        <button
-          className="modal-opt"
-          onClick={() => setRedeemed(true)}
-          style={{ width:"100%", padding:"16px", borderRadius:radius.lg, background: r.accent, border:"none", color:"#000", fontSize:"0.875rem", fontWeight:800, letterSpacing:"0.04em", cursor:"pointer", boxShadow:`0 4px 22px rgba(${rgb(r.accent)},0.42)` }}
-        >
-          Redeem for {r.coinsRequired.toLocaleString()} pts
-        </button>
-      ) : (
-        <button
-          className="modal-opt"
-          onClick={() => {}}
-          style={{ width:"100%", padding:"16px", borderRadius:radius.lg, background:"rgba(255,255,255,0.05)", border:`1px solid ${color.border.subtle}`, color:color.text.secondary, fontSize:"0.875rem", fontWeight:600, cursor:"default" }}
-        >
-          Keep earning to unlock
-        </button>
+      {/* CTA — redemption not yet live */}
+      <button
+        disabled
+        style={{ width:"100%", padding:"16px", borderRadius:radius.lg, background:"rgba(255,255,255,0.05)", border:`1px solid ${color.border.subtle}`, color:"rgba(255,255,255,0.28)", fontSize:"0.875rem", fontWeight:700, cursor:"not-allowed", letterSpacing:"0.02em" }}
+      >
+        Redemption coming soon
+      </button>
+      {canAfford && (
+        <p style={{ fontSize:"0.5rem", color:"rgba(255,255,255,0.28)", textAlign:"center", margin:"8px 0 0" }}>
+          Your {r.coinsRequired.toLocaleString()} pts will be reserved when redemption opens.
+        </p>
       )}
 
       <p style={{ fontSize:"0.4375rem", color:"rgba(255,255,255,0.18)", textAlign:"center", margin:"12px 0 0", letterSpacing:"0.03em" }}>

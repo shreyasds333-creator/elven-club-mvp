@@ -153,8 +153,8 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
     setTimeout(() => { setJoining(false); store.joinChallenge(c!.id, c!.entry); }, 1400);
   }
 
-  function handleProofSubmit() {
-    store.sendProof(c!.id);
+  function handleProofSubmit(imageUrl?: string) {
+    store.sendProof(c!.id, imageUrl);
     setTimeout(() => setShowProof(false), 1800);
   }
 
@@ -841,13 +841,13 @@ function JoinModal({ c, walletBalance, onConfirm, onClose }: {
 
 // ─── Proof Modal ──────────────────────────────────────────────────────────────
 function ProofModal({ c, onSubmit, onClose }: {
-  c: Challenge; dayNum: number; proofSent: boolean; onSubmit: () => void; onClose: () => void;
+  c: Challenge; dayNum: number; proofSent: boolean; onSubmit: (imageUrl?: string) => void; onClose: () => void;
 }) {
   return (
     <ProofCamera
       challengeId={c.id}
       challengeTitle={c.title}
-      onSuccess={() => { onSubmit(); }}
+      onSuccess={(url) => { onSubmit(url); }}
       onClose={onClose}
     />
   );
