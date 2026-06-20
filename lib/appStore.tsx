@@ -124,7 +124,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [longestStreak,     setLongestStreak]     = useState(0);
   const [lastProofDate,     setLastProofDate]     = useState<string | null>(null);
   const [shields,           setShields]           = useState(2);
-  const [joined,            setJoined]            = useState<Set<number>>(() => new Set([1]));
+  const [joined,            setJoined]            = useState<Set<number>>(() => new Set());
   const [recovering,        setRecovering]        = useState<Set<number>>(() => new Set());
   const [proofSent,         setProofSent]         = useState<Set<number>>(() => new Set());
   const [shielded,          setShielded]          = useState<Set<number>>(() => new Set());
@@ -147,8 +147,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       const today = todayStr();
 
+      // allSettled so one missing table never aborts the rest
       const [appStateRes, txnsRes, membershipsRes, todayProofsRes, allProofsRes, claimedRes, shieldedRes, createdRes] =
-        await Promise.all([
+        await Promise.allSettled([
           supabase.from("user_app_state").select("*").eq("user_id", uid).single(),
           supabase.from("transactions").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(100),
           supabase.from("challenge_memberships").select("challenge_id").eq("user_id", uid),
@@ -159,17 +160,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           supabase.from("created_challenges").select("data").eq("user_id", uid),
         ]);
 
+      // Safely unwrap each settled result
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      function ok<T>(r: PromiseSettledResult<any>): T | null {
+        return r.status === "fulfilled" ? (r.value.data as T) : null;
+      }
+
       // Core game state
-      const st = appStateRes.data;
+      const st = ok<Record<string, unknown>>(appStateRes);
       if (st) {
         const lastDate = st.last_proof_date as string | null;
-        setCoins(st.coins ?? 25000);
-        setStreak(computeStreak(st.streak ?? 0, lastDate));
-        setLongestStreak(st.longest_streak ?? 0);
+        setCoins((st.coins as number) ?? 25000);
+        setStreak(computeStreak((st.streak as number) ?? 0, lastDate));
+        setLongestStreak((st.longest_streak as number) ?? 0);
         setLastProofDate(lastDate);
-        setShields(st.shields ?? 2);
+        setShields((st.shields as number) ?? 2);
       } else {
-        // First sign-in — seed initial rows
+        // First sign-in — seed state row and welcome transaction
         await supabase.from("user_app_state").insert({
           user_id: uid, coins: 25000, streak: 0, longest_streak: 0, shields: 2,
         });
@@ -180,27 +187,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Transactions
-      if (txnsRes.data?.length) {
-        setTransactions(txnsRes.data.map(t => ({
-          id:        t.id,
-          label:     t.label,
-          coins:     t.coins,
-          isDebit:   t.is_debit,
-          emoji:     t.emoji,
+      const txns = ok<Record<string, unknown>[]>(txnsRes);
+      if (txns?.length) {
+        setTransactions(txns.map(t => ({
+          id:        t.id as string,
+          label:     t.label as string,
+          coins:     t.coins as number,
+          isDebit:   t.is_debit as boolean,
+          emoji:     t.emoji as string,
           category:  t.category as Transaction["category"],
-          timestamp: new Date(t.created_at).getTime(),
+          timestamp: new Date(t.created_at as string).getTime(),
         })));
       }
 
-      // Joined challenges (always include challenge 1 as demo default)
-      setJoined(new Set([1, ...(membershipsRes.data?.map((m: { challenge_id: number }) => m.challenge_id) ?? [])]));
+      // Joined challenges
+      const memberships = ok<{ challenge_id: number }[]>(membershipsRes);
+      setJoined(new Set(memberships?.map(m => m.challenge_id) ?? []));
 
       // Today's proofs
-      setProofSent(new Set(todayProofsRes.data?.map((p: { challenge_id: number }) => p.challenge_id) ?? []));
+      const todayProofs = ok<{ challenge_id: number }[]>(todayProofsRes);
+      setProofSent(new Set(todayProofs?.map(p => p.challenge_id) ?? []));
 
-      // Proof log
-      if (allProofsRes.data) {
-        setProofLog(allProofsRes.data.map((p: { challenge_id: number; challenge_title: string; submitted_at: string; streak_at_time: number }) => ({
+      // Full proof log
+      const allProofs = ok<{ challenge_id: number; challenge_title: string; submitted_at: string; streak_at_time: number }[]>(allProofsRes);
+      if (allProofs?.length) {
+        setProofLog(allProofs.map(p => ({
           challengeId:    p.challenge_id,
           challengeTitle: p.challenge_title,
           timestamp:      new Date(p.submitted_at).getTime(),
@@ -208,11 +219,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })));
       }
 
-      setClaimedChallenges(new Set(claimedRes.data?.map((c: { challenge_id: number }) => c.challenge_id) ?? []));
-      setShielded(new Set(shieldedRes.data?.map((s: { challenge_id: number }) => s.challenge_id) ?? []));
+      const claimedData  = ok<{ challenge_id: number }[]>(claimedRes);
+      const shieldedData = ok<{ challenge_id: number }[]>(shieldedRes);
+      const createdData  = ok<{ data: unknown }[]>(createdRes);
 
-      if (createdRes.data) {
-        setCreatedChallenges(createdRes.data.map((d: { data: unknown }) => d.data as Challenge));
+      setClaimedChallenges(new Set(claimedData?.map(c => c.challenge_id) ?? []));
+      setShielded(new Set(shieldedData?.map(s => s.challenge_id) ?? []));
+      if (createdData?.length) {
+        setCreatedChallenges(createdData.map(d => d.data as Challenge));
       }
     });
 

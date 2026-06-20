@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Zap, Trophy, MessageCircle, Wallet } from "lucide-react";
+import { Zap, Trophy, User, Wallet } from "lucide-react";
 import { color, radius, motion } from "@/lib/tokens";
 
 const TABS = [
-  { href: "/feed",       label: "Activity",   Icon: Zap           },
-  { href: "/challenges", label: "Challenges", Icon: Trophy        },
-  { href: "/camera",     label: "",           Icon: null          },
-  { href: "/chat",       label: "Chat",       Icon: MessageCircle },
-  { href: "/wallet",     label: "Wallet",     Icon: Wallet        },
+  { href: "/feed",       label: "Activity",   Icon: Zap    },
+  { href: "/challenges", label: "Challenges", Icon: Trophy },
+  { href: "/camera",     label: "",           Icon: null   },
+  { href: "/profile",    label: "Profile",    Icon: User   },
+  { href: "/wallet",     label: "Wallet",     Icon: Wallet },
 ] as const;
 
 export default function BottomNav() {

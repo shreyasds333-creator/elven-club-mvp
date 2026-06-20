@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   TrendingUp, Camera, Settings, Share2,
@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/authStore";
 import { color, radius, typo, space, motion } from "@/lib/tokens";
-import { fmt, rgb } from "@/lib/challengeData";
+import { fmt, rgb, ALL_CHALLENGES } from "@/lib/challengeData";
 import { getReputation } from "@/lib/feedData";
 import { useAppStore, todayStr, type ProofEntry } from "@/lib/appStore";
 
@@ -90,10 +90,6 @@ const BADGES: BadgeItem[] = [
   { id: 9, emoji: "⚔️", name: "Iron Disciple",   desc: "Score 90+ discipline",   rarity: "Legendary", unlocked: false, rarityClr: "#E2BE74",                rarityGlow: "rgba(226,190,116,0.22)", rarityPct: "3.7% own", category: "Discipline"  },
 ];
 
-const ACTIVE_CHALLENGES = [
-  { id: 1, title: "Summer Shred",   emoji: "⚡", day: 11, totalDays: 30, tier: "Elite",  prize: 250000, accentColor: "#E2BE74" },
-  { id: 2, title: "10K Daily Walk", emoji: "🚶", day: 2,  totalDays: 7,  tier: "Rookie", prize: 12000,  accentColor: "#C9A84C" },
-];
 
 const WORKOUT_HISTORY = [
   { id: 1, activity: "Morning Run",  emoji: "🏃", calories: 820, detail: "8.2 km · 45 min", when: "Today",      accent: "#4DC87A" },
@@ -124,15 +120,26 @@ function buildCalendar(proofLog: ProofEntry[], provedToday: boolean) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const router = useRouter();
-  const { streak, longestStreak, provedToday, createdChallenges, joined, proofLog, claimedChallenges, transactions } = useAppStore();
+  const { streak, longestStreak, provedToday, createdChallenges, joined, proofLog, claimedChallenges, transactions, shields: storeShields } = useAppStore();
   const totalEarned = transactions.filter(t => t.category === "Win").reduce((s, t) => s + t.coins, 0);
   const calendar    = buildCalendar(proofLog, provedToday);
   const [activeTab,   setActiveTab]   = useState<Tab>("Overview");
-  const [shields,     setShields]     = useState(2);
+  const [shields,     setShields]     = useState(storeShields);
   const [fragments,   setFragments]   = useState(2);
   const [shieldOn,    setShieldOn]    = useState(false);
   const [discOpen,    setDiscOpen]    = useState(false);
   const [doneActions, setDoneActions] = useState<Set<number>>(new Set([0, 1]));
+
+  useEffect(() => { setShields(storeShields); }, [storeShields]);
+
+  const activeChallenges = ALL_CHALLENGES.filter(c => joined.has(c.id)).map(c => ({
+    id: c.id, title: c.title, emoji: c.emoji,
+    day: Math.max(1, c.duration - c.daysLeft),
+    totalDays: c.duration,
+    tier: c.tier,
+    prize: c.prize,
+    accentColor: c.accentColor,
+  }));
 
   const xpPct = USER.xp / USER.xpNext;
   const rep   = getReputation(streak);
@@ -426,8 +433,13 @@ export default function ProfilePage() {
                 <ChevronRight size={11} style={{ color:color.gold.base }} />
               </button>
             </div>
+            {activeChallenges.length === 0 && (
+              <div style={{ padding:"16px", borderRadius:radius.lg, background:color.bg.surface, border:`1px solid ${color.border.faint}`, textAlign:"center" }}>
+                <p style={{ fontSize:"0.875rem", color:color.text.muted, margin:0 }}>No active challenges yet</p>
+              </div>
+            )}
             <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-              {ACTIVE_CHALLENGES.map((c, i) => (
+              {activeChallenges.map((c, i) => (
                 <button
                   key={c.id}
                   className="challenge-row"
