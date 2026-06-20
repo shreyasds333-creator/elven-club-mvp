@@ -66,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Keep user state in sync with Supabase auth events
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
         const profile = await fetchProfile(session.user.id);
         if (profile) setUser(profile);
@@ -156,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: email.trim().toLowerCase(),
       options: {
         shouldCreateUser: true,
+        emailRedirectTo: undefined,
         data: name ? { name, handle } : undefined,
       },
     });
