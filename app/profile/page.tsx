@@ -27,18 +27,13 @@ const USER = {
   name:            "",
   handle:          "",
   initials:        "",
-  streak:          11,
-  rupeesEarned:    12000,
-  totalCalories:   48240,
-  totalChallenges: 7,
-  rank:            4,
-  discScore:       87,
-  weekRank:        "Top 8%",
-  archetype:       "Iron Disciple",
-  archetypeEmoji:  "⚔️",
-  level:           23,
-  xp:              2160,
-  xpNext:          3000,
+  discScore:       0,
+  weekRank:        "—",
+  archetype:       "Newcomer",
+  archetypeEmoji:  "🌱",
+  level:           1,
+  xp:              0,
+  xpNext:          1000,
 };
 
 // 14-day streak calendar (oldest → today)
@@ -225,10 +220,6 @@ export default function ProfilePage() {
             <h1 style={{ fontSize:"1.3125rem", fontWeight:900, letterSpacing:"-0.04em", color:color.text.primary, margin:"0 0 2px", lineHeight:1 }}>{displayName}</h1>
             <p style={{ fontSize:"0.6875rem", color:color.text.tertiary, margin:"0 0 10px" }}>{displayHandle}</p>
             <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-              <div className="badge-chip" style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:radius.full, background:"rgba(201,168,76,0.09)", border:`1px solid ${color.gold.border}` }}>
-                <span style={{ fontSize:8 }}>🥇</span>
-                <span style={{ fontSize:"0.5rem", fontWeight:700, letterSpacing:"0.07em", textTransform:"uppercase", color:color.gold.base }}>Gold</span>
-              </div>
               <div className="badge-chip" style={{ display:"flex", alignItems:"center", gap:4, padding:"3px 9px", borderRadius:radius.full, background:"rgba(139,139,222,0.09)", border:"1px solid rgba(139,139,222,0.22)" }}>
                 <span style={{ fontSize:8 }}>{USER.archetypeEmoji}</span>
                 <span style={{ fontSize:"0.5rem", fontWeight:700, letterSpacing:"0.06em", textTransform:"uppercase", color:"#8B8BDE" }}>{USER.archetype}</span>

@@ -26,9 +26,10 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
   const [snapUrl,     setSnapUrl]     = useState<string | null>(null);
   const [flash,       setFlash]       = useState(false);
   const [facingMode,  setFacingMode]  = useState<"environment" | "user">("environment");
-  const [cameraReady, setCameraReady] = useState(false);
-  const [cameraError, setCameraError] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const [cameraReady,    setCameraReady]    = useState(false);
+  const [cameraError,    setCameraError]    = useState(false);
+  const [cameraErrorMsg, setCameraErrorMsg] = useState("");
+  const [submitError,    setSubmitError]    = useState("");
 
   // ── Camera stream lifecycle ─────────────────────────────────────────────────
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
 
     if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
       setCameraError(true);
+      setCameraErrorMsg("getUserMedia not available in this browser/context.");
       return;
     }
 
@@ -53,7 +55,13 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
           setCameraReady(true);
         }
       })
-      .catch(() => { if (!cancelled) setCameraError(true); });
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setCameraError(true);
+          const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+          setCameraErrorMsg(msg);
+        }
+      });
 
     return () => {
       cancelled = true;
@@ -257,11 +265,16 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
       ) : (
         <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 70% at 50% 40%, rgba(18,24,18,1) 0%, #030305 100%)" }}>
           {cameraError && (
-            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12 }}>
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "0 32px" }}>
               <span style={{ fontSize: "2rem", opacity: 0.30 }}>📷</span>
-              <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.28)", textAlign: "center", maxWidth: 240, lineHeight: 1.5 }}>
-                Camera unavailable.<br />Allow camera access in your browser settings.
+              <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.50)", textAlign: "center", maxWidth: 280, lineHeight: 1.5 }}>
+                Camera unavailable. Allow camera access in your browser settings.
               </p>
+              {cameraErrorMsg && (
+                <p style={{ fontSize: "0.625rem", color: "rgba(255,80,80,0.70)", textAlign: "center", maxWidth: 280, lineHeight: 1.5, fontFamily: "monospace", wordBreak: "break-all" }}>
+                  {cameraErrorMsg}
+                </p>
+              )}
             </div>
           )}
         </div>
