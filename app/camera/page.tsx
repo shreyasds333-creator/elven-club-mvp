@@ -71,8 +71,9 @@ export default function CameraPage() {
   const [flashOn,     setFlashOn]     = useState(false);
   const [flash,       setFlash]       = useState(false);
   const [facingMode,  setFacingMode]  = useState<"environment" | "user">("environment");
-  const [cameraReady, setCameraReady] = useState(false);
-  const [cameraError, setCameraError] = useState(false);
+  const [cameraReady,    setCameraReady]    = useState(false);
+  const [cameraError,    setCameraError]    = useState(false);
+  const [cameraErrorMsg, setCameraErrorMsg] = useState("");
   const [snapUrl,     setSnapUrl]     = useState<string | null>(null);
   const [sentIds,     setSentIds]     = useState<Set<number>>(new Set());
   const [blipIdx,     setBlipIdx]     = useState(0);
@@ -99,6 +100,7 @@ export default function CameraPage() {
 
     setCameraReady(false);
     setCameraError(false);
+    setCameraErrorMsg("");
 
     if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
       navigator.mediaDevices
@@ -112,9 +114,18 @@ export default function CameraPage() {
             setCameraReady(true);
           }
         })
-        .catch(() => { if (!cancelled) setCameraError(true); });
+        .catch((err: unknown) => {
+          if (!cancelled) {
+            console.log("[camera] getUserMedia error:", err);
+            setCameraError(true);
+            const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+            setCameraErrorMsg(msg);
+          }
+        });
     } else {
+      console.log("[camera] getUserMedia not available — mediaDevices:", navigator?.mediaDevices);
       setCameraError(true);
+      setCameraErrorMsg("getUserMedia not available in this browser/context.");
     }
 
     return () => {
@@ -564,11 +575,16 @@ export default function CameraPage() {
           {/* Depth gradient */}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.36) 100%)" }} />
           {cameraError && (
-            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, paddingBottom: 80 }}>
+            <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, paddingBottom: 80, padding: "0 32px 80px" }}>
               <div style={{ width: 60, height: 60, borderRadius: "50%", border: "1.5px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ fontSize: 26, opacity: 0.18 }}>📷</span>
               </div>
-              <p style={{ fontSize: "0.5625rem", letterSpacing: "0.11em", color: "rgba(255,255,255,0.16)", textTransform: "uppercase" }}>Camera unavailable</p>
+              <p style={{ fontSize: "0.5625rem", letterSpacing: "0.11em", color: "rgba(255,255,255,0.16)", textTransform: "uppercase", margin: 0 }}>Camera unavailable</p>
+              {cameraErrorMsg && (
+                <p style={{ fontSize: "0.625rem", color: "rgba(255,80,80,0.75)", textAlign: "center", maxWidth: 280, lineHeight: 1.5, fontFamily: "monospace", wordBreak: "break-all", margin: 0 }}>
+                  {cameraErrorMsg}
+                </p>
+              )}
             </div>
           )}
         </div>
