@@ -163,8 +163,11 @@ function CityLeaderboard() {
       style={{ padding: `32px ${space.screenX}px 0` }}
     >
       {/* Section label */}
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
-        <span style={{ ...typo.label, color: color.text.tertiary }}>City Rankings</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{ ...typo.label, color: color.text.tertiary }}>City Rankings</span>
+          <span style={{ fontSize: "0.375rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(226,190,116,0.55)", background: "rgba(226,190,116,0.06)", border: "1px solid rgba(226,190,116,0.16)", padding: "2px 6px", borderRadius: 3 }}>Preview</span>
+        </div>
         <span style={{ fontSize: "0.5rem", color: color.text.muted }}>This week</span>
       </div>
 

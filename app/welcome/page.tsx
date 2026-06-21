@@ -95,6 +95,27 @@ export default function WelcomePage() {
   const [loading,       setLoading]       = useState(false);
   const [entering,      setEntering]      = useState(false);
 
+  type ResendState = "idle" | "sending" | "sent" | "cooldown";
+  const [resendState,    setResendState]    = useState<ResendState>("idle");
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendState !== "cooldown") return;
+    if (resendCooldown <= 0) { setResendState("idle"); return; }
+    const t = setTimeout(() => setResendCooldown(n => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendState, resendCooldown]);
+
+  async function handleResend() {
+    if (resendState !== "idle") return;
+    setResendState("sending");
+    setError("");
+    const { error: err } = await sendOtp(email, name.trim(), handle);
+    if (err) { setError(err); setResendState("idle"); return; }
+    setResendState("sent");
+    setTimeout(() => { setResendState("cooldown"); setResendCooldown(30); }, 1500);
+  }
+
   // Drag to swipe between feature slides
   const dragX = useMotionValue(0);
 
@@ -818,10 +839,22 @@ export default function WelcomePage() {
                 </motion.button>
 
                 <button
-                  onClick={async () => { setError(""); await sendOtp(email, name.trim(), handle); }}
-                  style={{ background: "none", border: "none", marginTop: 22, fontSize: "0.8125rem", color: "rgba(255,255,255,0.28)", cursor: "pointer" }}
+                  onClick={handleResend}
+                  disabled={resendState !== "idle"}
+                  style={{
+                    background: "none", border: "none", marginTop: 22,
+                    fontSize: "0.8125rem", fontWeight: 600,
+                    cursor: resendState === "idle" ? "pointer" : "default",
+                    color: resendState === "sent"    ? "#4DC87A"
+                         : resendState !== "idle"   ? "rgba(255,255,255,0.22)"
+                         : "rgba(255,255,255,0.28)",
+                    transition: "color 0.2s ease",
+                  }}
                 >
-                  Resend code
+                  {resendState === "sending"   ? "Sending…"
+                   : resendState === "sent"    ? "Code sent ✓"
+                   : resendState === "cooldown" ? `Resend in ${resendCooldown}s`
+                   : "Resend code"}
                 </button>
               </div>
             </div>

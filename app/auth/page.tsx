@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -42,6 +42,27 @@ export default function AuthPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [error,   setError]   = useState("");
   const [loading, setLoading] = useState(false);
+
+  type ResendState = "idle" | "sending" | "sent" | "cooldown";
+  const [resendState,    setResendState]    = useState<ResendState>("idle");
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    if (resendState !== "cooldown") return;
+    if (resendCooldown <= 0) { setResendState("idle"); return; }
+    const t = setTimeout(() => setResendCooldown(n => n - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendState, resendCooldown]);
+
+  async function handleResend() {
+    if (resendState !== "idle") return;
+    setResendState("sending");
+    setError("");
+    const { error: err } = await sendOtp(email.trim().toLowerCase());
+    if (err) { setError(err); setResendState("idle"); return; }
+    setResendState("sent");
+    setTimeout(() => { setResendState("cooldown"); setResendCooldown(30); }, 1500);
+  }
 
   async function handleSendOtp() {
     const trimmed = email.trim().toLowerCase();
@@ -335,10 +356,22 @@ export default function AuthPage() {
                 ← Change email
               </button>
               <button
-                onClick={async () => { setError(""); await sendOtp(email.trim().toLowerCase()); }}
-                style={{ background: "none", border: "none", fontSize: "0.8125rem", color: "rgba(201,168,76,0.60)", cursor: "pointer", padding: 0, fontWeight: 600 }}
+                onClick={handleResend}
+                disabled={resendState !== "idle"}
+                style={{
+                  background: "none", border: "none", padding: 0,
+                  fontSize: "0.8125rem", fontWeight: 600,
+                  cursor: resendState === "idle" ? "pointer" : "default",
+                  color: resendState === "sent"     ? "#4DC87A"
+                       : resendState !== "idle"     ? "rgba(255,255,255,0.22)"
+                       : "rgba(201,168,76,0.60)",
+                  transition: "color 0.2s ease",
+                }}
               >
-                Resend code
+                {resendState === "sending"  ? "Sending…"
+                 : resendState === "sent"   ? "Code sent ✓"
+                 : resendState === "cooldown" ? `Resend in ${resendCooldown}s`
+                 : "Resend code"}
               </button>
             </motion.div>
           </motion.div>

@@ -44,16 +44,29 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
       return;
     }
 
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: facingMode } }, audio: false })
+    // Try preferred facing mode first; fall back to any camera on OverconstrainedError
+    const getStream = () =>
+      navigator.mediaDevices
+        .getUserMedia({ video: { facingMode: { ideal: facingMode } }, audio: false })
+        .catch((err: unknown) => {
+          const name = err instanceof Error ? err.name : "";
+          if (name === "OverconstrainedError" || name === "ConstraintNotSatisfiedError") {
+            return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          }
+          throw err;
+        });
+
+    getStream()
       .then(stream => {
         if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
         console.log("[ProofCamera] stream obtained — active:", stream.active, "tracks:", stream.getVideoTracks().map(t => `${t.label} (${t.readyState})`));
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play().catch(e => console.log("[ProofCamera] video.play() failed:", e));
+          // setCameraReady BEFORE play() so the element is visible when playback starts.
+          // iOS Safari can silently drop autoplay on display:none elements.
           setCameraReady(true);
+          videoRef.current.play().catch(e => console.log("[ProofCamera] video.play() failed:", e));
         } else {
           console.log("[ProofCamera] videoRef.current is null when stream arrived");
         }
@@ -61,7 +74,13 @@ export default function ProofCamera({ challengeId, challengeTitle, onSuccess, on
       .catch((err: unknown) => {
         if (!cancelled) {
           setCameraError(true);
-          const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+          const errName = err instanceof Error ? err.name : "";
+          const msg =
+            errName === "NotAllowedError"  ? "Camera permission denied. Enable it in your browser settings and reload."
+            : errName === "NotFoundError"  ? "No camera found on this device."
+            : errName === "NotReadableError" ? "Camera is already in use by another app."
+            : err instanceof Error         ? `${err.name}: ${err.message}`
+            : String(err);
           setCameraErrorMsg(msg);
         }
       });

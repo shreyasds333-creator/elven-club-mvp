@@ -247,6 +247,7 @@ export default function ProfilePage() {
                 <Zap size={11} style={{ color:"#6098D8" }} />
               </div>
               <span style={{ fontSize:"0.875rem", fontWeight:800, color:color.text.primary, letterSpacing:"-0.025em" }}>Level {USER.level}</span>
+              <span style={{ fontSize:"0.375rem", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"rgba(226,190,116,0.55)", background:"rgba(226,190,116,0.06)", border:"1px solid rgba(226,190,116,0.16)", padding:"2px 6px", borderRadius:3 }}>Preview</span>
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:4 }}>
               <span style={{ fontSize:"0.5rem", color:color.text.tertiary }}>{(USER.xpNext - USER.xp).toLocaleString()} XP to go</span>
@@ -516,6 +517,27 @@ export default function ProfilePage() {
             )}
           </div>
 
+          {/* My Squad */}
+          <div style={{ padding:`24px ${space.screenX}px 0` }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+              <span style={{ ...typo.label, color:color.text.tertiary }}>My Squad</span>
+            </div>
+            <button
+              className="challenge-row"
+              onClick={() => router.push("/squad")}
+              style={{ width:"100%", padding:"14px 16px", borderRadius:radius.lg, background:color.bg.card, border:`1px solid ${color.border.subtle}`, display:"flex", alignItems:"center", gap:12, cursor:"pointer", textAlign:"left" }}
+            >
+              <div style={{ width:36, height:36, borderRadius:radius.sm, background:"rgba(96,152,216,0.08)", border:"1px solid rgba(96,152,216,0.20)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>
+                👥
+              </div>
+              <div style={{ flex:1 }}>
+                <p style={{ fontSize:"0.875rem", fontWeight:700, color:color.text.primary, margin:"0 0 2px", letterSpacing:"-0.01em" }}>Squad</p>
+                <p style={{ fontSize:"0.5625rem", color:color.text.muted, margin:0 }}>Create or join a squad of up to 4</p>
+              </div>
+              <ChevronRight size={14} style={{ color:color.text.muted, flexShrink:0 }} />
+            </button>
+          </div>
+
           {/* Recent workouts */}
           <div style={{ padding:`24px ${space.screenX}px 0` }}>
             <span style={{ ...typo.label, color:color.text.tertiary }}>Recent Workouts</span>
@@ -646,7 +668,10 @@ export default function ProfilePage() {
       {activeTab === "Badges" && (
         <div style={{ padding:`20px ${space.screenX}px 0` }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-            <span style={{ ...typo.label, color:color.text.tertiary }}>Achievements</span>
+            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <span style={{ ...typo.label, color:color.text.tertiary }}>Achievements</span>
+              <span style={{ fontSize:"0.375rem", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"rgba(226,190,116,0.55)", background:"rgba(226,190,116,0.06)", border:"1px solid rgba(226,190,116,0.16)", padding:"2px 6px", borderRadius:3 }}>Preview</span>
+            </div>
             <span style={{ fontSize:"0.5625rem", color:color.text.muted }}>
               {BADGES.filter(b => b.unlocked).length}/{BADGES.length} unlocked
             </span>

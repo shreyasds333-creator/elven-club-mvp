@@ -537,6 +537,9 @@ function HeroCard({ challenge: c, joined, joining, proofSent, recoveryActive, sh
               <span style={{ fontSize:"0.6875rem", color:color.text.tertiary }}>
                 {c.friendsJoined.length} friend{c.friendsJoined.length > 1 ? "s" : ""} in · {c.joinedToday} joined today
               </span>
+              <span style={{ marginLeft:"auto", fontSize:"0.375rem", fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", color:"rgba(226,190,116,0.55)", background:"rgba(226,190,116,0.06)", border:"1px solid rgba(226,190,116,0.16)", padding:"2px 6px", borderRadius:3, flexShrink:0 }}>
+                Preview
+              </span>
             </div>
           )}
 

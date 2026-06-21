@@ -83,6 +83,10 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
   const [showDelete,       setShowDelete]       = useState(false);
   const [deleting,         setDeleting]         = useState(false);
 
+  type SquadMemberToday = { userId: string; name: string; initials: string; provedToday: boolean; isYou: boolean };
+  const [squadToday,   setSquadToday]   = useState<{ squadName: string; members: SquadMemberToday[] } | null>(null);
+  const [squadRefetch, setSquadRefetch] = useState(0);
+
   useEffect(() => {
     const t = setInterval(() => {
       setCountdown(p => {
@@ -130,6 +134,63 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
 
   }, [id]);
 
+  // ── Squad Today: who in my squad has proved in this challenge today ──────────
+  useEffect(() => {
+    const challengeId = parseInt(id);
+    if (isNaN(challengeId) || !authUser) return;
+
+    (async () => {
+      // 1. Get current user's squad membership + squad name
+      const { data: membership } = await supabase
+        .from("squad_members")
+        .select("squad_id, squads(name)")
+        .eq("user_id", authUser.id)
+        .maybeSingle();
+
+      if (!membership) { setSquadToday(null); return; }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const squadName = (membership.squads as any)?.name ?? "Your Squad";
+
+      // 2. Get all squad members + profiles
+      const { data: memberRows } = await supabase
+        .from("squad_members")
+        .select("user_id, profiles(name, initials)")
+        .eq("squad_id", membership.squad_id);
+
+      if (!memberRows?.length) { setSquadToday(null); return; }
+
+      const userIds = memberRows.map(r => r.user_id as string);
+      const today   = new Date().toISOString().slice(0, 10);
+
+      // 3. Which squad members proved today in this challenge?
+      const { data: proofs } = await supabase
+        .from("proof_submissions")
+        .select("user_id")
+        .eq("challenge_id", challengeId)
+        .in("user_id", userIds)
+        .gte("submitted_at", `${today}T00:00:00`);
+
+      const provedSet = new Set((proofs ?? []).map(p => p.user_id as string));
+
+      setSquadToday({
+        squadName,
+        members: memberRows.map(r => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const p = r.profiles as any;
+          return {
+            userId:     r.user_id as string,
+            name:       p?.name     ?? "Member",
+            initials:   p?.initials ?? "??",
+            provedToday: provedSet.has(r.user_id as string),
+            isYou:      r.user_id === authUser.id,
+          };
+        }),
+      });
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, squadRefetch, authUser?.id]);
+
   if (!c) return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: color.text.secondary }}>
       <span style={{ fontSize: 32 }}>🔍</span>
@@ -155,7 +216,10 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
 
   function handleProofSubmit(imageUrl?: string) {
     store.sendProof(c!.id, imageUrl);
-    setTimeout(() => setShowProof(false), 1800);
+    setTimeout(() => {
+      setShowProof(false);
+      setSquadRefetch(n => n + 1); // re-run squad today query so own checkmark flips immediately
+    }, 1800);
   }
 
   function handleShieldActivate() {
@@ -408,7 +472,7 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
       )}
 
       {/* ── Leaderboard ───────────────────────────────────────────────────────── */}
-      <SectionTitle title="Leaderboard" icon="🏆" />
+      <SectionTitle title="Leaderboard" icon="🏆" preview />
       <div style={{ margin: `0 ${space.screenX}px`, borderRadius: radius.lg, background: color.bg.card, border: `1px solid ${color.border.subtle}`, overflow: "hidden" }}>
         {LB.map((row, i) => (
           <div key={i} style={{
@@ -454,6 +518,70 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
           </div>
         ))}
       </div>
+
+      {/* ── Your Squad Today ──────────────────────────────────────────────────── */}
+      {squadToday && squadToday.members.length > 0 && (
+        <>
+          <SectionTitle title="Your Squad Today" icon="👥" />
+          <div style={{ margin: `0 ${space.screenX}px`, borderRadius: radius.lg, background: color.bg.card, border: `1px solid ${color.border.subtle}`, padding: "16px" }}>
+            {/* Member avatars row */}
+            <div style={{ display: "flex" }}>
+              {squadToday.members.map((m) => (
+                <div key={m.userId} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 7 }}>
+                  {/* Avatar + status dot */}
+                  <div style={{ position: "relative" }}>
+                    <div style={{
+                      width: 44, height: 44, borderRadius: "50%",
+                      background: m.isYou
+                        ? "linear-gradient(135deg,#7A4A18,#3A2008)"
+                        : "linear-gradient(135deg,#1A2A3A,#080E16)",
+                      border: `2px solid ${m.provedToday ? "#4DC87A" : "rgba(255,255,255,0.09)"}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "0.5rem", fontWeight: 800,
+                      color: m.provedToday ? "#fff" : "rgba(255,255,255,0.30)",
+                      opacity: m.provedToday ? 1 : 0.55,
+                      boxShadow: m.provedToday ? "0 0 12px rgba(77,200,122,0.32)" : "none",
+                      transition: "all 0.3s ease",
+                    }}>
+                      {m.initials}
+                    </div>
+                    {/* Status indicator dot */}
+                    <div style={{
+                      position: "absolute", bottom: -1, right: -1,
+                      width: 15, height: 15, borderRadius: "50%",
+                      background: m.provedToday ? "#4DC87A" : "rgba(255,255,255,0.08)",
+                      border: "2px solid #0A0A0D",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "0.4375rem", color: "#000", fontWeight: 900,
+                    }}>
+                      {m.provedToday ? "✓" : ""}
+                    </div>
+                  </div>
+                  {/* Name + status text */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{
+                      fontSize: "0.5rem", fontWeight: 700, display: "block", lineHeight: 1.2,
+                      color: m.isYou ? color.gold.base : (m.provedToday ? color.text.secondary : color.text.muted),
+                    }}>
+                      {m.isYou ? "You" : m.name.split(" ")[0]}
+                    </span>
+                    <span style={{ fontSize: "0.4375rem", color: m.provedToday ? "#4DC87A" : "rgba(255,255,255,0.22)" }}>
+                      {m.provedToday ? "done ✓" : "pending"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Footer row */}
+            <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${color.border.faint}`, display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: "0.5625rem", color: color.text.tertiary }}>👥 {squadToday.squadName}</span>
+              <span style={{ marginLeft: "auto", fontSize: "0.5rem", color: color.text.muted }}>
+                {squadToday.members.filter(m => m.provedToday).length}/{squadToday.members.length} proved today
+              </span>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* ── Social Activity Feed ──────────────────────────────────────────────── */}
       <SectionTitle title="Live Activity" icon="●" iconColor="#4DC87A" animate />
@@ -746,11 +874,16 @@ export default function ChallengeDetailPage({ params }: { params: Promise<{ id: 
 }
 
 // ─── Section title helper ─────────────────────────────────────────────────────
-function SectionTitle({ title, icon, iconColor, animate }: { title: string; icon: string; iconColor?: string; animate?: boolean }) {
+function SectionTitle({ title, icon, iconColor, animate, preview }: { title: string; icon: string; iconColor?: string; animate?: boolean; preview?: boolean }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 7, padding: `20px ${space.screenX}px 10px` }}>
       <span style={{ fontSize: icon.length > 1 ? 12 : 8, color: iconColor ?? color.text.muted, animation: animate ? "liveDot 1.8s ease-in-out infinite" : "none" }}>{icon}</span>
       <span style={{ ...typo.label, color: color.text.tertiary }}>{title}</span>
+      {preview && (
+        <span style={{ fontSize: "0.375rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(226,190,116,0.55)", background: "rgba(226,190,116,0.06)", border: "1px solid rgba(226,190,116,0.16)", padding: "2px 6px", borderRadius: 3 }}>
+          Preview
+        </span>
+      )}
     </div>
   );
 }

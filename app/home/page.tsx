@@ -104,16 +104,25 @@ function SectionHeader({
   title,
   action = "See all",
   href,
+  preview,
 }: {
   title: string;
   action?: string;
   href?: string;
+  preview?: boolean;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-      <h2 style={{ ...typo.heading, color: color.text.primary, margin: 0 }}>
-        {title}
-      </h2>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <h2 style={{ ...typo.heading, color: color.text.primary, margin: 0 }}>
+          {title}
+        </h2>
+        {preview && (
+          <span style={{ fontSize: "0.375rem", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(226,190,116,0.55)", background: "rgba(226,190,116,0.06)", border: "1px solid rgba(226,190,116,0.16)", padding: "2px 6px", borderRadius: 3 }}>
+            Preview
+          </span>
+        )}
+      </div>
       {href ? (
         <Link
           href={href}
@@ -673,7 +682,7 @@ export default function HomePage() {
 
       {/* ── Leaderboard ────────────────────────────────────────────────── */}
       <section style={{ padding: `0 ${space.screenX}px`, marginTop: space.sectionY }}>
-        <SectionHeader title="Leaderboard" action="Full board" />
+        <SectionHeader title="Leaderboard" action="Full board" preview />
 
         <div
           style={{
