@@ -616,16 +616,16 @@ function FeaturedCard({ reward: r, userCoins, onTap }: { reward: Reward; userCoi
               <span style={{ fontSize:"1.125rem", fontWeight:900, color:r.accent, letterSpacing:"-0.04em" }}>
                 {r.coinsRequired.toLocaleString()} pts
               </span>
-              {canAfford && <span style={{ fontSize:"0.4375rem", color:"#4DC87A", fontWeight:700 }}>✓ You can redeem</span>}
+              {canAfford && <span style={{ fontSize:"0.4375rem", color:"rgba(77,200,122,0.55)", fontWeight:700 }}>✓ Enough pts</span>}
             </div>
             {!canAfford && <span style={{ fontSize:"0.4375rem", color:"rgba(255,255,255,0.30)" }}>Need {(r.coinsRequired - userCoins).toLocaleString()} more pts</span>}
           </div>
           <button
             className="redeem-btn"
             onClick={e => { e.stopPropagation(); onTap(); }}
-            style={{ padding:"9px 18px", borderRadius:radius.lg, background: canAfford ? r.accent : "rgba(255,255,255,0.08)", border:"none", color: canAfford ? "#000" : "rgba(255,255,255,0.30)", fontSize:"0.625rem", fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", cursor: canAfford ? "pointer" : "default", boxShadow: canAfford ? `0 3px 14px rgba(${rgb(r.accent)},0.38)` : "none" }}
+            style={{ padding:"9px 18px", borderRadius:radius.lg, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.10)", color:"rgba(255,255,255,0.38)", fontSize:"0.625rem", fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", cursor:"pointer", boxShadow:"none" }}
           >
-            {canAfford ? "Redeem →" : "Locked"}
+            Preview →
           </button>
         </div>
       </div>
@@ -676,9 +676,9 @@ function RewardCard({ reward: r, userCoins, onTap }: { reward: Reward; userCoins
           <button
             className="redeem-btn"
             onClick={e => { e.stopPropagation(); onTap(); }}
-            style={{ padding:"5px 10px", borderRadius:radius.xs, background: canAfford ? r.accent : "rgba(255,255,255,0.07)", border:"none", color: canAfford ? "#000" : "rgba(255,255,255,0.26)", fontSize:"0.4375rem", fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", cursor: canAfford ? "pointer" : "default", boxShadow: canAfford ? `0 2px 10px rgba(${rgb(r.accent)},0.32)` : "none" }}
+            style={{ padding:"5px 10px", borderRadius:radius.xs, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.09)", color:"rgba(255,255,255,0.36)", fontSize:"0.4375rem", fontWeight:800, letterSpacing:"0.06em", textTransform:"uppercase", cursor:"pointer", boxShadow:"none" }}
           >
-            {canAfford ? "Redeem" : "Locked"}
+            Preview
           </button>
         </div>
         <span style={{ fontSize:"0.375rem", color:"rgba(255,255,255,0.16)", display:"block", marginTop:8 }}>Expires {r.expires}</span>
